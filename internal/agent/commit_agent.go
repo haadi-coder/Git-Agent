@@ -12,6 +12,8 @@ import (
 	"github.com/haadi-coder/Git-Agent/internal/llm"
 	"github.com/haadi-coder/Git-Agent/internal/tool"
 	"github.com/openai/openai-go"
+
+	_ "embed"
 )
 
 type CommitAgent struct {
@@ -41,20 +43,26 @@ func NewCommitAgent(llmClient *llm.OpenRouter, instructions []string) *CommitAge
 var responseFormat = &openai.ChatCompletionNewParamsResponseFormatUnion{
 	OfJSONSchema: &openai.ResponseFormatJSONSchemaParam{
 		JSONSchema: openai.ResponseFormatJSONSchemaJSONSchemaParam{
-			Name:        "final_output strictly in this format without any spaces and newlines",
-			Description: openai.String("final output format"),
+			Name:        "commit_message_output",
+			Description: openai.String("A compact JSON object containing a single commit_message string, formatted with no spaces or newlines (e.g., {\"commit_message\":\"example\"})"),
+			Strict:      openai.Bool(true),
 			Schema: &openai.FunctionParameters{
 				"type": "object",
 				"properties": map[string]any{
 					"commit_message": map[string]any{
 						"type":        "string",
-						"description": "finaly generated commit message",
+						"description": "The commit message as a string. Must be non-empty and contain no newlines or leading/trailing spaces.",
 					},
 				},
+				"required":             []string{"commit_message"},
+				"additionalProperties": false,
 			},
 		},
 	},
 }
+
+//go:embed system_prompt.md
+var systemPrompt string
 
 func buildSystemPrompt(instructions []string) string {
 	data := struct {
@@ -63,7 +71,7 @@ func buildSystemPrompt(instructions []string) string {
 		Instructions: instructions,
 	}
 
-	template, err := template.ParseFiles("system_prompt.md")
+	template, err := template.New("system_prompt").Parse(systemPrompt)
 	if err != nil {
 		fmt.Printf("Template reading error: %v\n", err)
 	}
