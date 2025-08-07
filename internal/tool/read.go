@@ -1,24 +1,25 @@
 package tool
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 )
 
-type ReadFile struct{}
+type Read struct{}
 
-var _ Tool = &ReadFile{}
+var _ Tool = &Read{}
 
-func (t *ReadFile) Name() string {
+func (t *Read) Name() string {
 	return "read_file"
 }
 
-func (t *ReadFile) Description() string {
+func (t *Read) Description() string {
 	return "Read the contents of a given relative file path. Use this when you want to see what's inside a file. Do not use this with directory names."
 }
 
-func (t *ReadFile) Params() map[string]any {
+func (t *Read) Params() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
@@ -31,19 +32,17 @@ func (t *ReadFile) Params() map[string]any {
 	}
 }
 
-type ReadFileInput struct {
-	Path string `json:"path"`
-}
-
-func (t *ReadFile) Call(input string) (string, error) {
-	readFileInput := ReadFileInput{}
-
-	err := json.Unmarshal([]byte(input), &readFileInput)
-	if err != nil {
-		return "", fmt.Errorf("failed to parse input json: %w", err)
+func (t *Read) Call(ctx context.Context, input string) (string, error) {
+	var params struct {
+		Path string `json:"path"`
 	}
 
-	content, err := os.ReadFile(readFileInput.Path)
+	err := json.Unmarshal([]byte(input), &params)
+	if err != nil {
+		return "", fmt.Errorf("failed to unmarshal input json: %w", err)
+	}
+
+	content, err := os.ReadFile(params.Path)
 	if err != nil {
 		return "", fmt.Errorf("failed to read file: %w", err)
 	}

@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -33,13 +32,7 @@ func main() {
 func Run(ctx context.Context, agent *agent.CommitAgent) {
 	fmt.Println("Analizing changes...")
 
-	response, err := agent.Run(ctx)
-	if err != nil {
-		fmt.Printf("Error: %v", err)
-		os.Exit(1)
-	}
-
-	commitMessage := extractCommitMessage(response)
+	commitMessage := agent.RunCommit(ctx)
 
 	fmt.Println(color.Blue("Generated commit message:"))
 	fmt.Println(commitMessage)
@@ -71,19 +64,4 @@ func Run(ctx context.Context, agent *agent.CommitAgent) {
 func perfomCommit(message string) error {
 	cmd := exec.Command("git", "commit", "-m", message)
 	return cmd.Run()
-}
-
-func extractCommitMessage(content string) string {
-	var result struct {
-		CommitMessage string `json:"commit_message"`
-	}
-
-	lines := strings.SplitSeq(content, "\n")
-	for line := range lines {
-		if err := json.Unmarshal([]byte(line), &result); err == nil && result.CommitMessage != "" {
-			return result.CommitMessage
-		}
-	}
-
-	return ""
 }

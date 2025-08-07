@@ -2,7 +2,11 @@ package agent
 
 import (
 	"bytes"
+	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"strings"
 	"text/template"
 
 	"github.com/haadi-coder/Git-Agent/internal/llm"
@@ -16,8 +20,8 @@ type CommitAgent struct {
 
 func NewCommitAgent(llmClient *llm.OpenRouter, instructions []string) *CommitAgent {
 	tools := []tool.Tool{
-		&tool.ReadFile{},
-		&tool.ListFilesTool{},
+		&tool.Read{},
+		&tool.LS{},
 		&tool.Git{},
 		&tool.Glob{},
 	}
@@ -71,4 +75,29 @@ func buildSystemPrompt(instructions []string) string {
 	}
 
 	return buf.String()
+}
+
+func (ca *CommitAgent) RunCommit(ctx context.Context) string {
+	response, err := ca.Run(ctx)
+	if err != nil {
+		fmt.Printf("Error: %v", err)
+		os.Exit(1)
+	}
+
+	return extractCommitMessage(response)
+}
+
+func extractCommitMessage(content string) string {
+	var result struct {
+		CommitMessage string `json:"commit_message"`
+	}
+
+	lines := strings.SplitSeq(content, "\n")
+	for line := range lines {
+		if err := json.Unmarshal([]byte(line), &result); err == nil && result.CommitMessage != "" {
+			return result.CommitMessage
+		}
+	}
+
+	return ""
 }

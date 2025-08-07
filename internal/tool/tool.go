@@ -1,8 +1,10 @@
 package tool
 
+import "context"
+
 type Tool interface {
 	Name() string
 	Description() string
 	Params() map[string]any
-	Call(input string) (string, error)
+	Call(ctx context.Context, input string) (string, error)
 }

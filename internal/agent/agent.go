@@ -19,19 +19,13 @@ type Agent struct {
 }
 
 func (agent *Agent) Run(ctx context.Context) (string, error) {
-	conversation := []openai.ChatCompletionMessageParamUnion{
+	history := []openai.ChatCompletionMessageParamUnion{
 		openai.SystemMessage(agent.systemPrompt),
 	}
 
 	for {
-		select {
-		case <-ctx.Done():
-			return "", ctx.Err()
-		default:
-		}
-
 		response, err := agent.client.CreateChatCompletion(ctx, openai.ChatCompletionNewParams{
-			Messages:       conversation,
+			Messages:       history,
 			Tools:          agent.provideTools(),
 			ResponseFormat: agent.responseFormat,
 		})
@@ -40,7 +34,7 @@ func (agent *Agent) Run(ctx context.Context) (string, error) {
 		}
 
 		message := response.Choices[0].Message
-		conversation = append(conversation, message.ToParam())
+		history = append(history, message.ToParam())
 
 		if message.Content != "" {
 			fmt.Printf("Agent: %s\n", message.Content)
@@ -50,12 +44,12 @@ func (agent *Agent) Run(ctx context.Context) (string, error) {
 			return message.Content, nil
 		}
 
-		toolsResult := agent.callTools(message.ToolCalls)
-		conversation = append(conversation, toolsResult...)
+		toolsResult := agent.callTools(ctx, message.ToolCalls)
+		history = append(history, toolsResult...)
 	}
 }
 
-func (a *Agent) callTools(toolCalls []openai.ChatCompletionMessageToolCall) []openai.ChatCompletionMessageParamUnion {
+func (a *Agent) callTools(ctx context.Context, toolCalls []openai.ChatCompletionMessageToolCall) []openai.ChatCompletionMessageParamUnion {
 	toolsResult := []openai.ChatCompletionMessageParamUnion{}
 
 	for _, toolCall := range toolCalls {
@@ -65,7 +59,7 @@ func (a *Agent) callTools(toolCalls []openai.ChatCompletionMessageToolCall) []op
 		var toolResult string
 		for _, tool := range a.tools {
 			if tool.Name() == name {
-				result, err := tool.Call(args)
+				result, err := tool.Call(ctx, args)
 				if err != nil {
 					toolResult = err.Error()
 					break

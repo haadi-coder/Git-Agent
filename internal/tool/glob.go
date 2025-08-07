@@ -1,6 +1,7 @@
 package tool
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
@@ -31,20 +32,18 @@ func (t *Glob) Params() map[string]any {
 	}
 }
 
-type GlobInput struct {
-	Pattern string `json:"pattern"`
-}
-
-func (t *Glob) Call(input string) (string, error) {
-	var globInput GlobInput
-
-	if err := json.Unmarshal([]byte(input), &globInput); err != nil {
-		return "", fmt.Errorf("failed to parse glob input: %w", err)
+func (t *Glob) Call(ctx context.Context, input string) (string, error) {
+	var params struct {
+		Pattern string `json:"pattern"`
 	}
 
-	matches, err := filepath.Glob(globInput.Pattern)
+	if err := json.Unmarshal([]byte(input), &params); err != nil {
+		return "", fmt.Errorf("failed to unmarshal glob input: %w", err)
+	}
+
+	matches, err := filepath.Glob(params.Pattern)
 	if err != nil {
-		return "", fmt.Errorf("failed to execute glob pattern '%s': %w", globInput.Pattern, err)
+		return "", fmt.Errorf("failed to execute glob pattern '%s': %w", params.Pattern, err)
 	}
 
 	if len(matches) == 0 {

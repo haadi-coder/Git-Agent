@@ -14,10 +14,11 @@ const (
 )
 
 type OpenRouter struct {
-	client *openai.Client
 	config *OpenRouterConfig
+	client *openai.Client
 }
 
+// TODO: Потом убрать отсюда APIURL
 type OpenRouterConfig struct {
 	APIKey    string
 	APIURL    string

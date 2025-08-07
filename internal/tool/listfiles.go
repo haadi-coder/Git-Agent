@@ -1,25 +1,26 @@
 package tool
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/fs"
 	"path/filepath"
 )
 
-type ListFilesTool struct{}
+type LS struct{}
 
-var _ Tool = &ListFilesTool{}
+var _ Tool = &LS{}
 
-func (t *ListFilesTool) Name() string {
+func (t *LS) Name() string {
 	return "list_files"
 }
 
-func (t *ListFilesTool) Description() string {
+func (t *LS) Description() string {
 	return "tool to list entries of certain path. If there isnt any path provided, list entries of current directory."
 }
 
-func (t *ListFilesTool) Params() map[string]any {
+func (t *LS) Params() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
@@ -32,19 +33,18 @@ func (t *ListFilesTool) Params() map[string]any {
 	}
 }
 
-type ListFilesInput struct {
-	Path string `json:"path"`
-}
+func (t *LS) Call(ctx context.Context, input string) (string, error) {
+	var params struct {
+		Path string `json:"path"`
+	}
 
-func (t *ListFilesTool) Call(input string) (string, error) {
-	listFilesInput := ListFilesInput{}
-	if err := json.Unmarshal([]byte(input), &listFilesInput); err != nil {
-		return "", fmt.Errorf("failed to parse input json: %w", err)
+	if err := json.Unmarshal([]byte(input), &params); err != nil {
+		return "", fmt.Errorf("failed to unmarshal input json: %w", err)
 	}
 
 	dir := "."
-	if listFilesInput.Path != "" {
-		dir = listFilesInput.Path
+	if params.Path != "" {
+		dir = params.Path
 	}
 
 	var files []string
@@ -69,12 +69,12 @@ func (t *ListFilesTool) Call(input string) (string, error) {
 		return nil
 	})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to walk through files: %w", err)
 	}
 
 	result, err := json.Marshal(files)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to marshal output json: %w", err)
 	}
 
 	return string(result), nil
