@@ -8,11 +8,6 @@ import (
 	"github.com/openai/openai-go/option"
 )
 
-const (
-	DefaultMaxTokens = 8192
-	DefaultModel     = "anthropic/claude-3.5-haiku"
-)
-
 type OpenRouter struct {
 	config *OpenRouterConfig
 	client *openai.Client
@@ -28,14 +23,6 @@ type OpenRouterConfig struct {
 }
 
 func NewOpenRouter(config *OpenRouterConfig) *OpenRouter {
-	if config.MaxTokens == 0 {
-		config.MaxTokens = DefaultMaxTokens
-	}
-
-	if config.Model == "" {
-		config.Model = DefaultModel
-	}
-
 	client := openai.NewClient(
 		option.WithAPIKey(config.APIKey),
 		option.WithBaseURL(config.APIURL),

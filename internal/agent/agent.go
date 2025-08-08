@@ -11,23 +11,26 @@ import (
 	"github.com/openai/openai-go/shared"
 )
 
+type LogHook func(name string, args ...string)
+
 type Agent struct {
 	client         llm.OpenRouter
 	tools          []tool.Tool
 	systemPrompt   string
 	responseFormat openai.ChatCompletionNewParamsResponseFormatUnion
+	logHook        LogHook
 }
 
-func (agent *Agent) Run(ctx context.Context) (string, error) {
+func (a *Agent) Run(ctx context.Context) (string, error) {
 	history := []openai.ChatCompletionMessageParamUnion{
-		openai.SystemMessage(agent.systemPrompt),
+		openai.SystemMessage(a.systemPrompt),
 	}
 
 	for {
-		response, err := agent.client.CreateChatCompletion(ctx, openai.ChatCompletionNewParams{
+		response, err := a.client.CreateChatCompletion(ctx, openai.ChatCompletionNewParams{
 			Messages:       history,
-			Tools:          agent.provideTools(),
-			ResponseFormat: agent.responseFormat,
+			Tools:          a.provideTools(),
+			ResponseFormat: a.responseFormat,
 		})
 		if err != nil {
 			return "", err
@@ -37,14 +40,14 @@ func (agent *Agent) Run(ctx context.Context) (string, error) {
 		history = append(history, message.ToParam())
 
 		if message.Content != "" {
-			fmt.Printf("Agent: %s\n", message.Content)
+			a.logHook("agent", message.Content)
 		}
 
 		if len(message.ToolCalls) == 0 {
 			return message.Content, nil
 		}
 
-		toolsResult := agent.callTools(ctx, message.ToolCalls)
+		toolsResult := a.callTools(ctx, message.ToolCalls)
 		history = append(history, toolsResult...)
 	}
 }
@@ -74,7 +77,7 @@ func (a *Agent) callTools(ctx context.Context, toolCalls []openai.ChatCompletion
 			toolResult = fmt.Sprintf("Unknown tool: %s", name)
 		}
 
-		fmt.Printf("Tool: %s(%s)\n", toolCall.Function.Name, args)
+		a.logHook("tool", toolCall.Function.Name, args)
 		toolsResult = append(toolsResult, openai.ToolMessage(toolResult, toolCall.ID))
 	}
 

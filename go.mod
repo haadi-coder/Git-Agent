@@ -4,6 +4,7 @@ go 1.24.5
 
 require (
 	github.com/haadi-coder/color v0.0.0-20250715144945-4377a95e2f6b
+	github.com/jessevdk/go-flags v1.6.1
 	github.com/openai/openai-go v1.12.0
 )
 

@@ -11,6 +11,7 @@ import (
 
 	"github.com/haadi-coder/Git-Agent/internal/llm"
 	"github.com/haadi-coder/Git-Agent/internal/tool"
+	"github.com/haadi-coder/color"
 	"github.com/openai/openai-go"
 
 	_ "embed"
@@ -26,6 +27,7 @@ func NewCommitAgent(llmClient *llm.OpenRouter, instructions []string) *CommitAge
 		&tool.LS{},
 		&tool.Git{},
 		&tool.Glob{},
+		&tool.Grep{},
 	}
 
 	baseAgent := &Agent{
@@ -33,6 +35,7 @@ func NewCommitAgent(llmClient *llm.OpenRouter, instructions []string) *CommitAge
 		tools:          tools,
 		systemPrompt:   buildSystemPrompt(instructions),
 		responseFormat: *responseFormat,
+		logHook:        logHook,
 	}
 
 	return &CommitAgent{
@@ -44,7 +47,7 @@ var responseFormat = &openai.ChatCompletionNewParamsResponseFormatUnion{
 	OfJSONSchema: &openai.ResponseFormatJSONSchemaParam{
 		JSONSchema: openai.ResponseFormatJSONSchemaJSONSchemaParam{
 			Name:        "commit_message_output",
-			Description: openai.String("A compact JSON object containing a single commit_message string, formatted with no spaces or newlines (e.g., {\"commit_message\":\"example\"})"),
+			Description: openai.String("A strict and compact JSON object containing a single commit_message string, formatted with no spaces or newlines (e.g., {\"commit_message\":\"example\"})"),
 			Strict:      openai.Bool(true),
 			Schema: &openai.FunctionParameters{
 				"type": "object",
@@ -71,7 +74,7 @@ func buildSystemPrompt(instructions []string) string {
 		Instructions: instructions,
 	}
 
-	template, err := template.New("system_prompt").Parse(systemPrompt)
+	template, err := template.New("improved_system_prompt").Parse(systemPrompt)
 	if err != nil {
 		fmt.Printf("Template reading error: %v\n", err)
 	}
@@ -108,4 +111,13 @@ func extractCommitMessage(content string) string {
 	}
 
 	return ""
+}
+
+func logHook(messageType string, args ...string) {
+	switch messageType {
+	case "agent":
+		fmt.Println(color.Yellow("Agent:"), args[0])
+	case "tool":
+		fmt.Printf(color.Blue("Tool: ")+"%s(%s)\n", args[0], args[1])
+	}
 }
