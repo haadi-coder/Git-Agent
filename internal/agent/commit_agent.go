@@ -119,5 +119,7 @@ func logHook(messageType string, args ...string) {
 		fmt.Println(color.Yellow("Agent:"), args[0])
 	case "tool":
 		fmt.Printf(color.Blue("Tool: ")+"%s(%s)\n", args[0], args[1])
+	case "info":
+		fmt.Printf(color.Black("Info: "+"Used Tokens: %s, Time spent: %ss\n\n"), args[0], args[1])
 	}
 }

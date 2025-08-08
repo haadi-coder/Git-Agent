@@ -3,6 +3,8 @@ package agent
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"time"
 
 	"github.com/haadi-coder/Git-Agent/internal/llm"
 	"github.com/haadi-coder/Git-Agent/internal/tool"
@@ -49,6 +51,10 @@ func (a *Agent) Run(ctx context.Context) (string, error) {
 
 		toolsResult := a.callTools(ctx, message.ToolCalls)
 		history = append(history, toolsResult...)
+
+		timeSpent := int(time.Now().Unix() - response.Created)
+		usedTokens := int(response.Usage.CompletionTokens)
+		a.logHook("info", strconv.Itoa(usedTokens), strconv.Itoa(timeSpent))
 	}
 }
 

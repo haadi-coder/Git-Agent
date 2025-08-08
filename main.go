@@ -39,7 +39,6 @@ var opts Options
 func main() {
 	parser := flags.NewParser(&opts, flags.IniDefault)
 	parser.Usage = "AI-powered commit message generator\n\nExample:\n  ga commit [options]"
-	parser.ShortDescription = "fsdfsdf"
 
 	args, err := parser.Parse()
 	if err != nil {
@@ -94,7 +93,17 @@ func main() {
 }
 
 func Run(ctx context.Context, agent *agent.CommitAgent) {
-	fmt.Println("Analizing changes...")
+	if opts.Verbose {
+		fmt.Println(color.Cyan("=== Git Agent Session Started ==="))
+		fmt.Printf(color.Black("Start Time: ")+"%s\n", time.Now().Format(time.TimeOnly))
+		fmt.Printf(color.Black("Max Tokens: ")+"%d\n", opts.MaxTokens)
+		fmt.Printf(color.Black("Model: ")+"%s", opts.Model)
+		if len(opts.Instructions) > 0 {
+			fmt.Println(color.Black("Instructions: "), strings.Join(opts.Instructions, ", "))
+		}
+	}
+
+	fmt.Println("\n\nAnalizing changes...")
 
 	commitMessage := agent.RunCommit(ctx)
 
