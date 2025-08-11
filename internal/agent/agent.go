@@ -13,8 +13,6 @@ import (
 	"github.com/openai/openai-go/shared"
 )
 
-type LogHook func(name string, args ...string)
-
 type Agent struct {
 	LLM            *llm.OpenRouter
 	Tools          []tool.Tool
