@@ -42,13 +42,13 @@ func (t *LS) Call(ctx context.Context, input string) (string, error) {
 		return "", fmt.Errorf("failed to unmarshal input json: %w", err)
 	}
 
-	dir := "."
-	if params.Path != "" {
-		dir = params.Path
+	dir, err := validatePath(params.Path)
+	if err != nil {
+		return "", fmt.Errorf("failed to validate path: %w", err)
 	}
 
 	var files []string
-	err := filepath.Walk(dir, func(path string, info fs.FileInfo, err error) error {
+	err = filepath.Walk(dir, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}

@@ -42,7 +42,12 @@ func (t *Read) Call(ctx context.Context, input string) (string, error) {
 		return "", fmt.Errorf("failed to unmarshal input json: %w", err)
 	}
 
-	content, err := os.ReadFile(params.Path)
+	path, err := validatePath(params.Path)
+	if err != nil {
+		return "", fmt.Errorf("failed to validate path: %w", err)
+	}
+
+	content, err := os.ReadFile(path)
 	if err != nil {
 		return "", fmt.Errorf("failed to read file: %w", err)
 	}

@@ -55,7 +55,12 @@ func (t *Grep) Call(ctx context.Context, input string) (string, error) {
 		return "", fmt.Errorf("failed to compile regular expression from provided pattern: %w", err)
 	}
 
-	info, err := os.Stat(params.Path)
+	path, err := validatePath(params.Path)
+	if err != nil {
+		return "", fmt.Errorf("failed to validate path: %w", err)
+	}
+
+	info, err := os.Stat(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return "", fmt.Errorf("path %s doesnt exist", params.Path)
