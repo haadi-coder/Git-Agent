@@ -31,11 +31,17 @@ func NewCommitAgent(llmClient *llm.OpenRouter, instructions []string) *CommitAge
 	}
 
 	baseAgent := &Agent{
-		client:         *llmClient,
-		tools:          tools,
-		systemPrompt:   buildSystemPrompt(instructions),
-		responseFormat: *responseFormat,
-		logHook:        logHook,
+		LLM:            llmClient,
+		Tools:          tools,
+		SystemPrompt:   buildSystemPrompt(instructions),
+		ResponseFormat: *responseFormat,
+		Hooks: &Hooks{
+			Agent: func(content string) { fmt.Println(color.Yellow("Agent:"), content) },
+			Tool:  func(name, args string) { fmt.Printf(color.Blue("Tool: ")+"%s(%s)\n", name, args) },
+			Info: func(usedTokens, timeSpent int) {
+				fmt.Printf(color.Black("Info: "+"Used Tokens: %d, Time spent: %ds\n\n"), usedTokens, timeSpent)
+			},
+		},
 	}
 
 	return &CommitAgent{
@@ -111,15 +117,4 @@ func extractCommitMessage(content string) string {
 	}
 
 	return ""
-}
-
-func logHook(messageType string, args ...string) {
-	switch messageType {
-	case "agent":
-		fmt.Println(color.Yellow("Agent:"), args[0])
-	case "tool":
-		fmt.Printf(color.Blue("Tool: ")+"%s(%s)\n", args[0], args[1])
-	case "info":
-		fmt.Printf(color.Black("Info: "+"Used Tokens: %s, Time spent: %ss\n\n"), args[0], args[1])
-	}
 }

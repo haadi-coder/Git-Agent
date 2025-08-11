@@ -8,15 +8,15 @@ import (
 	"github.com/openai/openai-go/option"
 )
 
+const BaseURL = "https://openrouter.ai/api/v1"
+
 type OpenRouter struct {
-	config *OpenRouterConfig
+	cfg    *OpenRouterConfig
 	client *openai.Client
 }
 
-// TODO: Потом убрать отсюда APIURL
 type OpenRouterConfig struct {
 	APIKey    string
-	APIURL    string
 	Model     string
 	MaxTokens int64
 	Timeout   time.Duration
@@ -25,19 +25,19 @@ type OpenRouterConfig struct {
 func NewOpenRouter(config *OpenRouterConfig) *OpenRouter {
 	client := openai.NewClient(
 		option.WithAPIKey(config.APIKey),
-		option.WithBaseURL(config.APIURL),
+		option.WithBaseURL(BaseURL),
 		option.WithRequestTimeout(config.Timeout),
 	)
 
 	return &OpenRouter{
 		client: &client,
-		config: config,
+		cfg:    config,
 	}
 }
 
 func (c *OpenRouter) CreateChatCompletion(ctx context.Context, params openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
-	params.Model = c.config.Model
-	params.MaxTokens.Value = c.config.MaxTokens
+	params.Model = c.cfg.Model
+	params.MaxTokens.Value = c.cfg.MaxTokens
 
 	return c.client.Chat.Completions.New(ctx, params)
 }

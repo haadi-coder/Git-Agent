@@ -3,7 +3,6 @@ package agent
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/haadi-coder/Git-Agent/internal/llm"
@@ -16,57 +15,68 @@ import (
 type LogHook func(name string, args ...string)
 
 type Agent struct {
-	client         llm.OpenRouter
-	tools          []tool.Tool
-	systemPrompt   string
-	responseFormat openai.ChatCompletionNewParamsResponseFormatUnion
-	logHook        LogHook
+	LLM            *llm.OpenRouter
+	Tools          []tool.Tool
+	SystemPrompt   string
+	ResponseFormat openai.ChatCompletionNewParamsResponseFormatUnion
+	Hooks          *Hooks
 }
 
+type Hooks struct {
+	Info  func(usedTokens int, timeSpent int)
+	Agent func(content string)
+	Tool  func(name string, args string)
+}
+
+// TODO: 7,9
+
+// Questions: 8, 10
 func (a *Agent) Run(ctx context.Context) (string, error) {
+	toolDefs := a.provideTools()
 	history := []openai.ChatCompletionMessageParamUnion{
-		openai.SystemMessage(a.systemPrompt),
+		openai.SystemMessage(a.SystemPrompt),
 	}
 
 	for {
-		response, err := a.client.CreateChatCompletion(ctx, openai.ChatCompletionNewParams{
+		response, err := a.LLM.CreateChatCompletion(ctx, openai.ChatCompletionNewParams{
 			Messages:       history,
-			Tools:          a.provideTools(),
-			ResponseFormat: a.responseFormat,
+			Tools:          toolDefs,
+			ResponseFormat: a.ResponseFormat,
 		})
 		if err != nil {
 			return "", err
 		}
 
 		message := response.Choices[0].Message
-		history = append(history, message.ToParam())
 
 		if message.Content != "" {
-			a.logHook("agent", message.Content)
+			a.Hooks.Agent(message.Content)
 		}
 
 		if len(message.ToolCalls) == 0 {
 			return message.Content, nil
 		}
 
+		history = append(history, message.ToParam())
+
 		toolsResult := a.callTools(ctx, message.ToolCalls)
 		history = append(history, toolsResult...)
 
 		timeSpent := int(time.Now().Unix() - response.Created)
 		usedTokens := int(response.Usage.CompletionTokens)
-		a.logHook("info", strconv.Itoa(usedTokens), strconv.Itoa(timeSpent))
+		a.Hooks.Info(usedTokens, timeSpent)
 	}
 }
 
 func (a *Agent) callTools(ctx context.Context, toolCalls []openai.ChatCompletionMessageToolCall) []openai.ChatCompletionMessageParamUnion {
-	toolsResult := []openai.ChatCompletionMessageParamUnion{}
+	toolResults := []openai.ChatCompletionMessageParamUnion{}
 
 	for _, toolCall := range toolCalls {
 		args := toolCall.Function.Arguments
 		name := toolCall.Function.Name
 
 		var toolResult string
-		for _, tool := range a.tools {
+		for _, tool := range a.Tools {
 			if tool.Name() == name {
 				result, err := tool.Call(ctx, args)
 				if err != nil {
@@ -83,17 +93,17 @@ func (a *Agent) callTools(ctx context.Context, toolCalls []openai.ChatCompletion
 			toolResult = fmt.Sprintf("Unknown tool: %s", name)
 		}
 
-		a.logHook("tool", toolCall.Function.Name, args)
-		toolsResult = append(toolsResult, openai.ToolMessage(toolResult, toolCall.ID))
+		a.Hooks.Tool(toolCall.Function.Name, args)
+		toolResults = append(toolResults, openai.ToolMessage(toolResult, toolCall.ID))
 	}
 
-	return toolsResult
+	return toolResults
 }
 
 func (a *Agent) provideTools() []openai.ChatCompletionToolParam {
-	openaiTools := make([]openai.ChatCompletionToolParam, 0, len(a.tools))
+	openaiTools := make([]openai.ChatCompletionToolParam, 0, len(a.Tools))
 
-	for _, tool := range a.tools {
+	for _, tool := range a.Tools {
 		openaiTools = append(openaiTools, openai.ChatCompletionToolParam{
 			Function: shared.FunctionDefinitionParam{
 				Name:        tool.Name(),

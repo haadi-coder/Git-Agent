@@ -17,10 +17,7 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
-const (
-	Version = "1.0.0"
-	APIUrl  = "https://openrouter.ai/api/v1"
-)
+const Version = "1.0.0"
 
 type Options struct {
 	APIKey        string        `short:"k" long:"api-key" description:"API key for LLM provider" env:"GA_API_KEY" required:"true"`
@@ -81,7 +78,6 @@ func main() {
 
 	openrouter := llm.NewOpenRouter(&llm.OpenRouterConfig{
 		APIKey:    opts.APIKey,
-		APIURL:    APIUrl,
 		Model:     opts.Model,
 		MaxTokens: opts.MaxTokens,
 		Timeout:   opts.Timeout,
