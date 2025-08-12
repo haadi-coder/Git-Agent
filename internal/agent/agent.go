@@ -16,7 +16,7 @@ import (
 	_ "embed"
 )
 
-type CommitAgent struct {
+type Agent struct {
 	LLM          *llm.OpenRouter
 	ToolLookup   map[string]tool.Tool
 	SystemPrompt string
@@ -51,7 +51,7 @@ func init() {
 	}
 }
 
-func NewCommitAgent(llmClient *llm.OpenRouter, instructions []string) *CommitAgent {
+func NewCommitAgent(llmClient *llm.OpenRouter, instructions []string) *Agent {
 	hooks := Hooks{}
 
 	hooks.AddOnIntermidiateStep(func(ctx context.Context, response *openai.ChatCompletion) {
@@ -79,7 +79,7 @@ func NewCommitAgent(llmClient *llm.OpenRouter, instructions []string) *CommitAge
 		fmt.Println(suggestion)
 	})
 
-	return &CommitAgent{
+	return &Agent{
 		LLM:          llmClient,
 		ToolLookup:   toolLookup,
 		SystemPrompt: buildSystemPrompt(instructions),
@@ -111,7 +111,7 @@ func buildSystemPrompt(instructions []string) string {
 	return buf.String()
 }
 
-func (a *CommitAgent) RunCommit(ctx context.Context) (string, error) {
+func (a *Agent) Run(ctx context.Context) (string, error) {
 	history := []openai.ChatCompletionMessageParamUnion{
 		openai.SystemMessage(a.SystemPrompt),
 	}
@@ -145,7 +145,7 @@ func (a *CommitAgent) RunCommit(ctx context.Context) (string, error) {
 	}
 }
 
-func (a *CommitAgent) callTools(ctx context.Context, toolCalls []openai.ChatCompletionMessageToolCall) []openai.ChatCompletionMessageParamUnion {
+func (a *Agent) callTools(ctx context.Context, toolCalls []openai.ChatCompletionMessageToolCall) []openai.ChatCompletionMessageParamUnion {
 	toolResults := make([]openai.ChatCompletionMessageParamUnion, len(toolCalls))
 
 	for i, toolCall := range toolCalls {

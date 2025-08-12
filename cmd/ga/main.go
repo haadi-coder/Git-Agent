@@ -91,7 +91,7 @@ func main() {
 	}
 }
 
-func Run(ctx context.Context, agent *agent.CommitAgent, opts *Options) error {
+func Run(ctx context.Context, agent *agent.Agent, opts *Options) error {
 	if opts.Verbose {
 		fmt.Println(color.Cyan("=== Git Agent Session Started ==="))
 		fmt.Printf(color.Black("Start Time: ")+"%s\n", time.Now().Format(time.TimeOnly))
@@ -104,7 +104,7 @@ func Run(ctx context.Context, agent *agent.CommitAgent, opts *Options) error {
 
 	fmt.Println("\n\nAnalizing changes...")
 
-	commitMessage, err := agent.RunCommit(ctx)
+	commitMessage, err := agent.Run(ctx)
 	if err != nil {
 		fmt.Print(color.Redf("Error: %v\n", err))
 		os.Exit(1)

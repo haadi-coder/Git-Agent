@@ -9,7 +9,7 @@ import (
 	"github.com/openai/openai-go"
 )
 
-func (a *CommitAgent) handleResponse(ctx context.Context, content string) (string, error) {
+func (a *Agent) handleResponse(ctx context.Context, content string) (string, error) {
 	resp := parseResponse(content)
 
 	if resp.Error != "" {
@@ -27,14 +27,14 @@ func (a *CommitAgent) handleResponse(ctx context.Context, content string) (strin
 	return "", fmt.Errorf("no valid response from LLM")
 }
 
-type AgentResponse struct {
+type Response struct {
 	Error      string `json:"error,omitempty"`
 	Suggestion string `json:"suggestion,omitempty"`
 	Result     string `json:"result,omitempty"`
 }
 
-func parseResponse(content string) *AgentResponse {
-	result := new(AgentResponse)
+func parseResponse(content string) *Response {
+	result := new(Response)
 
 	lines := strings.SplitSeq(content, "\n")
 
