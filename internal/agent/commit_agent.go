@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"text/template"
+	"time"
 
 	"github.com/haadi-coder/Git-Agent/internal/llm"
 	"github.com/haadi-coder/Git-Agent/internal/tool"
@@ -28,22 +29,38 @@ func NewCommitAgent(llmClient *llm.OpenRouter, instructions []string) *CommitAge
 		&tool.Grep{},
 	}
 
+	hooks := Hooks{}
+
+	hooks.AddOnAgentContent(func(ctx context.Context, response *openai.ChatCompletion) {
+		message := response.Choices[0].Message
+		fmt.Println(color.Yellow("Agent:"), message.Content)
+	})
+
+	hooks.AddBeforeToolCall(func(ctx context.Context, toolCall *openai.ChatCompletionMessageToolCall) {
+		name := toolCall.Function.Name
+		args := toolCall.Function.Arguments
+
+		fmt.Printf(color.Blue("Tool: ")+"%s(%s)\n", name, args)
+	})
+
+	hooks.AddAfterToolCall(func(ctx context.Context, response *openai.ChatCompletion) {
+		timeSpent := int(time.Now().Unix() - response.Created)
+		usedTokens := int(response.Usage.CompletionTokens)
+
+		fmt.Printf(color.Black("Info: "+"Used Tokens: %d, Time spent: %ds\n\n"), usedTokens, timeSpent)
+	})
+
+	hooks.AddOnSuggestion(func(ctx context.Context, suggestion string) {
+		fmt.Print(color.Cyan("\nSuggestion:\n"))
+		fmt.Println(suggestion)
+	})
+
 	baseAgent := &Agent{
 		LLM:            llmClient,
 		Tools:          tools,
 		SystemPrompt:   buildSystemPrompt(instructions),
 		ResponseFormat: *responseFormat,
-		Hooks: &Hooks{
-			Agent: func(content string) { fmt.Println(color.Yellow("Agent:"), content) },
-			Tool:  func(name, args string) { fmt.Printf(color.Blue("Tool: ")+"%s(%s)\n", name, args) },
-			Info: func(usedTokens, timeSpent int) {
-				fmt.Printf(color.Black("Info: "+"Used Tokens: %d, Time spent: %ds\n\n"), usedTokens, timeSpent)
-			},
-			Suggestion: func(message string) {
-				fmt.Print(color.Cyan("\nSuggestion:\n"))
-				fmt.Println(message)
-			},
-		},
+		Hooks:          &hooks,
 	}
 
 	return &CommitAgent{

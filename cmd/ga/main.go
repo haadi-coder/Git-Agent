@@ -31,9 +31,9 @@ type Options struct {
 	Help          bool          `short:"h" long:"help" description:"Show this help message"`
 }
 
-var opts Options
-
 func main() {
+	var opts Options
+
 	parser := flags.NewParser(&opts, flags.IniDefault)
 	parser.Usage = "AI-powered commit message generator\n\nExample:\n  ga commit [options]"
 
@@ -85,10 +85,13 @@ func main() {
 
 	agent := agent.NewCommitAgent(openrouter, opts.Instructions)
 
-	Run(ctx, agent)
+	if err = Run(ctx, agent, &opts); err != nil {
+		fmt.Print(err)
+		os.Exit(1)
+	}
 }
 
-func Run(ctx context.Context, agent *agent.CommitAgent) {
+func Run(ctx context.Context, agent *agent.CommitAgent, opts *Options) error {
 	if opts.Verbose {
 		fmt.Println(color.Cyan("=== Git Agent Session Started ==="))
 		fmt.Printf(color.Black("Start Time: ")+"%s\n", time.Now().Format(time.TimeOnly))
@@ -111,23 +114,22 @@ func Run(ctx context.Context, agent *agent.CommitAgent) {
 		reader := bufio.NewReader(os.Stdin)
 		userInput, err := reader.ReadString('\n')
 		if err != nil {
-			fmt.Printf("failed to read input: %v", err)
-			os.Exit(1)
+			return fmt.Errorf("failed to read input: %w", err)
 		}
 
 		userInput = strings.ToLower(strings.TrimSpace(userInput))
 		if userInput == "n" || userInput == "no" {
 			fmt.Println(color.Red("Message not commited"))
-			return
+			os.Exit(0)
 		}
 	}
 
 	if err := perfomCommit(commitMessage); err != nil {
-		fmt.Printf("Error committing: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to commit: %w", err)
 	}
 
 	fmt.Print(color.Green("Succesfully commited"))
+	return nil
 }
 
 func perfomCommit(message string) error {

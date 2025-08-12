@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/haadi-coder/Git-Agent/internal/llm"
 	"github.com/haadi-coder/Git-Agent/internal/tool"
@@ -24,10 +23,26 @@ type Agent struct {
 }
 
 type Hooks struct {
-	Info       func(usedTokens int, timeSpent int)
-	Agent      func(content string)
-	Tool       func(name string, args string)
-	Suggestion func(message string)
+	onAgentContent   []func(ctx context.Context, response *openai.ChatCompletion)
+	onBeforeToolCall []func(ctx context.Context, toolCall *openai.ChatCompletionMessageToolCall)
+	onAfterToolCall  []func(ctx context.Context, response *openai.ChatCompletion)
+	onSuggestion     []func(ctx context.Context, suggestion string)
+}
+
+func (h *Hooks) AddOnAgentContent(hook func(ctx context.Context, response *openai.ChatCompletion)) {
+	h.onAgentContent = append(h.onAgentContent, hook)
+}
+
+func (h *Hooks) AddBeforeToolCall(hook func(ctx context.Context, toolCall *openai.ChatCompletionMessageToolCall)) {
+	h.onBeforeToolCall = append(h.onBeforeToolCall, hook)
+}
+
+func (h *Hooks) AddAfterToolCall(hook func(ctx context.Context, response *openai.ChatCompletion)) {
+	h.onAfterToolCall = append(h.onAfterToolCall, hook)
+}
+
+func (h *Hooks) AddOnSuggestion(hook func(ctx context.Context, suggestion string)) {
+	h.onSuggestion = append(h.onSuggestion, hook)
 }
 
 func (a *Agent) Run(ctx context.Context) (string, error) {
@@ -49,11 +64,13 @@ func (a *Agent) Run(ctx context.Context) (string, error) {
 		message := response.Choices[0].Message
 
 		if message.Content != "" {
-			a.Hooks.Agent(message.Content)
+			for _, hook := range a.Hooks.onAgentContent {
+				hook(ctx, response)
+			}
 		}
 
 		if len(message.ToolCalls) == 0 {
-			return a.handleResponse(message.Content)
+			return a.handleResponse(ctx, message.Content)
 		}
 
 		history = append(history, message.ToParam())
@@ -61,9 +78,9 @@ func (a *Agent) Run(ctx context.Context) (string, error) {
 		toolResults := a.callTools(ctx, message.ToolCalls)
 		history = append(history, toolResults...)
 
-		timeSpent := int(time.Now().Unix() - response.Created)
-		usedTokens := int(response.Usage.CompletionTokens)
-		a.Hooks.Info(usedTokens, timeSpent)
+		for _, hook := range a.Hooks.onAfterToolCall {
+			hook(ctx, response)
+		}
 	}
 }
 
@@ -94,7 +111,10 @@ func (a *Agent) callTools(ctx context.Context, toolCalls []openai.ChatCompletion
 			toolResult = fmt.Sprintf("Unknown tool: %s", name)
 		}
 
-		a.Hooks.Tool(toolCall.Function.Name, args)
+		for _, hook := range a.Hooks.onBeforeToolCall {
+			hook(ctx, &toolCall)
+		}
+
 		toolResults[i] = openai.ToolMessage(toolResult, toolCall.ID)
 	}
 
@@ -117,7 +137,7 @@ func (a *Agent) toolDefs() []openai.ChatCompletionToolParam {
 	return openaiTools
 }
 
-func (a *Agent) handleResponse(content string) (string, error) {
+func (a *Agent) handleResponse(ctx context.Context, content string) (string, error) {
 	resp := parseResponse(content)
 
 	if resp.Error != "" {
@@ -125,7 +145,9 @@ func (a *Agent) handleResponse(content string) (string, error) {
 	}
 
 	if resp.Suggestion != "" {
-		a.Hooks.Suggestion(resp.Suggestion)
+		for _, hook := range a.Hooks.onSuggestion {
+			hook(ctx, resp.Suggestion)
+		}
 	}
 
 	if resp.Result != "" {
@@ -145,7 +167,7 @@ func parseResponse(content string) *AgentResponse {
 	result := new(AgentResponse)
 
 	lines := strings.SplitSeq(content, "\n")
-	
+
 	for line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {
