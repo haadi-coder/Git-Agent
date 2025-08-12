@@ -41,21 +41,21 @@ func (t *Grep) Params() map[string]any {
 }
 
 func (t *Grep) Call(ctx context.Context, input string) (string, error) {
-	var params struct {
+	var args struct {
 		Pattern string `json:"pattern"`
 		Path    string `json:"path"`
 	}
 
-	if err := json.Unmarshal([]byte(input), &params); err != nil {
+	if err := json.Unmarshal([]byte(input), &args); err != nil {
 		return "", fmt.Errorf("failed to unmarshal grep input: %w", err)
 	}
 
-	regexp, err := regexp.Compile(params.Pattern)
+	regexp, err := regexp.Compile(args.Pattern)
 	if err != nil {
 		return "", fmt.Errorf("failed to compile regular expression from provided pattern: %w", err)
 	}
 
-	path, err := validatePath(params.Path)
+	path, err := cleanPath(args.Path)
 	if err != nil {
 		return "", fmt.Errorf("failed to validate path: %w", err)
 	}
@@ -63,7 +63,7 @@ func (t *Grep) Call(ctx context.Context, input string) (string, error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return "", fmt.Errorf("path %s doesnt exist", params.Path)
+			return "", fmt.Errorf("path %s doesnt exist", args.Path)
 		}
 		return "", fmt.Errorf("failed to check path: %w", err)
 	}
@@ -95,9 +95,9 @@ func (t *Grep) Call(ctx context.Context, input string) (string, error) {
 	}
 
 	if info.IsDir() {
-		err = filepath.Walk(params.Path, walkFunc)
+		err = filepath.Walk(args.Path, walkFunc)
 	} else {
-		err = walkFunc(params.Path, info, nil)
+		err = walkFunc(args.Path, info, nil)
 	}
 
 	if err != nil {
@@ -105,7 +105,7 @@ func (t *Grep) Call(ctx context.Context, input string) (string, error) {
 	}
 
 	if len(results) == 0 {
-		return "", fmt.Errorf("nothing found based on %s", params.Pattern)
+		return "", fmt.Errorf("nothing found based on %s", args.Pattern)
 	}
 
 	return strings.Join(results, "\n"), nil

@@ -14,7 +14,7 @@ type Tool interface {
 	Call(ctx context.Context, input string) (string, error)
 }
 
-func validatePath(path string) (string, error) {
+func cleanPath(path string) (string, error) {
 	if path == "" {
 		return ".", nil
 	}

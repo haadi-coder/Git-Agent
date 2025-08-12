@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
 	"text/template"
 	"time"
 
@@ -12,16 +11,24 @@ import (
 	"github.com/haadi-coder/Git-Agent/internal/tool"
 	"github.com/haadi-coder/color"
 	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/shared"
 
 	_ "embed"
 )
 
 type CommitAgent struct {
-	*Agent
+	LLM          *llm.OpenRouter
+	ToolLookup   map[string]tool.Tool
+	SystemPrompt string
+	Hooks        *Hooks
 }
 
-func NewCommitAgent(llmClient *llm.OpenRouter, instructions []string) *CommitAgent {
-	tools := []tool.Tool{
+var tools [5]tool.Tool
+var toolLookup = make(map[string]tool.Tool)
+var toolsDefinition = make([]openai.ChatCompletionToolParam, len(tools))
+
+func init() {
+	tools = [5]tool.Tool{
 		&tool.Read{},
 		&tool.LS{},
 		&tool.Git{},
@@ -29,10 +36,27 @@ func NewCommitAgent(llmClient *llm.OpenRouter, instructions []string) *CommitAge
 		&tool.Grep{},
 	}
 
+	for _, t := range tools {
+		toolLookup[t.Name()] = t
+	}
+
+	for i, tool := range tools {
+		toolsDefinition[i] = openai.ChatCompletionToolParam{
+			Function: shared.FunctionDefinitionParam{
+				Name:        tool.Name(),
+				Description: openai.String(tool.Description()),
+				Parameters:  tool.Params(),
+			},
+		}
+	}
+}
+
+func NewCommitAgent(llmClient *llm.OpenRouter, instructions []string) *CommitAgent {
 	hooks := Hooks{}
 
-	hooks.AddOnAgentContent(func(ctx context.Context, response *openai.ChatCompletion) {
+	hooks.AddOnIntermidiateStep(func(ctx context.Context, response *openai.ChatCompletion) {
 		message := response.Choices[0].Message
+		fmt.Print(color.Cyan("✦ "))
 		fmt.Println(color.Yellow("Agent:"), message.Content)
 	})
 
@@ -40,14 +64,14 @@ func NewCommitAgent(llmClient *llm.OpenRouter, instructions []string) *CommitAge
 		name := toolCall.Function.Name
 		args := toolCall.Function.Arguments
 
-		fmt.Printf(color.Blue("Tool: ")+"%s(%s)\n", name, args)
+		fmt.Printf(color.Blue("  Tool: ")+"%s(%s)\n", name, args)
 	})
 
 	hooks.AddAfterToolCall(func(ctx context.Context, response *openai.ChatCompletion) {
 		timeSpent := int(time.Now().Unix() - response.Created)
 		usedTokens := int(response.Usage.CompletionTokens)
 
-		fmt.Printf(color.Black("Info: "+"Used Tokens: %d, Time spent: %ds\n\n"), usedTokens, timeSpent)
+		fmt.Printf(color.Black("  Info: "+"Used Tokens: %d, Time spent: %ds\n\n"), usedTokens, timeSpent)
 	})
 
 	hooks.AddOnSuggestion(func(ctx context.Context, suggestion string) {
@@ -55,50 +79,12 @@ func NewCommitAgent(llmClient *llm.OpenRouter, instructions []string) *CommitAge
 		fmt.Println(suggestion)
 	})
 
-	baseAgent := &Agent{
-		LLM:            llmClient,
-		Tools:          tools,
-		SystemPrompt:   buildSystemPrompt(instructions),
-		ResponseFormat: *responseFormat,
-		Hooks:          &hooks,
-	}
-
 	return &CommitAgent{
-		Agent: baseAgent,
+		LLM:          llmClient,
+		ToolLookup:   toolLookup,
+		SystemPrompt: buildSystemPrompt(instructions),
+		Hooks:        &hooks,
 	}
-}
-
-var responseFormat = &openai.ChatCompletionNewParamsResponseFormatUnion{
-	OfJSONSchema: &openai.ResponseFormatJSONSchemaParam{
-		JSONSchema: openai.ResponseFormatJSONSchemaJSONSchemaParam{
-			Name:        "commit_response",
-			Description: openai.String("Response format for commit generation with error handling and suggestions"),
-			Strict:      openai.Bool(true),
-			Schema: &openai.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"error": map[string]any{
-						"type":        "string",
-						"description": "Error message if something went wrong (e.g., no git repo, no staged changes).",
-					},
-					"suggestion": map[string]any{
-						"type":        "object",
-						"description": "Optional suggestion from the LLM (e.g., to split large commits).",
-					},
-					"result": map[string]any{
-						"type":        "string",
-						"description": "finaly result output. It should result message, that is ready for commiting",
-					},
-				},
-				"additionalProperties": false,
-				"anyOf": []any{
-					map[string]any{"required": []string{"error"}},
-					map[string]any{"required": []string{"suggestion"}},
-					map[string]any{"required": []string{"result"}},
-				},
-			},
-		},
-	},
 }
 
 //go:embed system_prompt.md
@@ -125,13 +111,66 @@ func buildSystemPrompt(instructions []string) string {
 	return buf.String()
 }
 
-// ?: Возможно уже не нужно выносить в отдельную функцию
-func (ca *CommitAgent) RunCommit(ctx context.Context) string {
-	response, err := ca.Run(ctx)
-	if err != nil {
-		fmt.Print(color.Redf("Error: %v\n", err))
-		os.Exit(1)
+func (a *CommitAgent) RunCommit(ctx context.Context) (string, error) {
+	history := []openai.ChatCompletionMessageParamUnion{
+		openai.SystemMessage(a.SystemPrompt),
 	}
 
-	return response
+	for {
+		response, err := a.LLM.CreateChatCompletion(ctx, openai.ChatCompletionNewParams{
+			Messages:       history,
+			Tools:          toolsDefinition,
+			ResponseFormat: *responseFormat,
+		})
+		if err != nil {
+			return "", err
+		}
+
+		message := response.Choices[0].Message
+
+		if message.Content != "" {
+			a.Hooks.handleIntermidiateStep(ctx, response)
+		}
+
+		if len(message.ToolCalls) == 0 {
+			return a.handleResponse(ctx, message.Content)
+		}
+
+		history = append(history, message.ToParam())
+
+		toolResults := a.callTools(ctx, message.ToolCalls)
+		history = append(history, toolResults...)
+
+		a.Hooks.handleAfterToolCall(ctx, response)
+	}
+}
+
+func (a *CommitAgent) callTools(ctx context.Context, toolCalls []openai.ChatCompletionMessageToolCall) []openai.ChatCompletionMessageParamUnion {
+	toolResults := make([]openai.ChatCompletionMessageParamUnion, len(toolCalls))
+
+	for i, toolCall := range toolCalls {
+		args := toolCall.Function.Arguments
+		name := toolCall.Function.Name
+
+		var toolResult string
+
+		if tool, ok := a.ToolLookup[name]; ok {
+			result, err := tool.Call(ctx, args)
+			if err != nil {
+				toolResult = err.Error()
+			} else {
+				toolResult = result
+			}
+		}
+
+		if toolResult == "" {
+			toolResult = fmt.Sprintf("Unknown tool: %s", name)
+		}
+
+		a.Hooks.handleBeforeToolCall(ctx, &toolCall)
+
+		toolResults[i] = openai.ToolMessage(toolResult, toolCall.ID)
+	}
+
+	return toolResults
 }

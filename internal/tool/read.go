@@ -33,16 +33,15 @@ func (t *Read) Params() map[string]any {
 }
 
 func (t *Read) Call(ctx context.Context, input string) (string, error) {
-	var params struct {
+	var args struct {
 		Path string `json:"path"`
 	}
 
-	err := json.Unmarshal([]byte(input), &params)
-	if err != nil {
+	if err := json.Unmarshal([]byte(input), &args); err != nil {
 		return "", fmt.Errorf("failed to unmarshal input json: %w", err)
 	}
 
-	path, err := validatePath(params.Path)
+	path, err := cleanPath(args.Path)
 	if err != nil {
 		return "", fmt.Errorf("failed to validate path: %w", err)
 	}

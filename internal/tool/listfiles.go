@@ -34,15 +34,15 @@ func (t *LS) Params() map[string]any {
 }
 
 func (t *LS) Call(ctx context.Context, input string) (string, error) {
-	var params struct {
+	var args struct {
 		Path string `json:"path"`
 	}
 
-	if err := json.Unmarshal([]byte(input), &params); err != nil {
+	if err := json.Unmarshal([]byte(input), &args); err != nil {
 		return "", fmt.Errorf("failed to unmarshal input json: %w", err)
 	}
 
-	dir, err := validatePath(params.Path)
+	dir, err := cleanPath(args.Path)
 	if err != nil {
 		return "", fmt.Errorf("failed to validate path: %w", err)
 	}

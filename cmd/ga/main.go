@@ -104,7 +104,11 @@ func Run(ctx context.Context, agent *agent.CommitAgent, opts *Options) error {
 
 	fmt.Println("\n\nAnalizing changes...")
 
-	commitMessage := agent.RunCommit(ctx)
+	commitMessage, err := agent.RunCommit(ctx)
+	if err != nil {
+		fmt.Print(color.Redf("Error: %v\n", err))
+		os.Exit(1)
+	}
 
 	fmt.Println(color.Cyan("\nGenerated commit message:"))
 	fmt.Println(commitMessage)

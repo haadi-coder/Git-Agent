@@ -48,25 +48,25 @@ type GitResponse struct {
 }
 
 func (t *Git) Call(ctx context.Context, input string) (string, error) {
-	var params struct {
+	var args struct {
 		Args []string `json:"args"`
 	}
 
-	if err := json.Unmarshal([]byte(input), &params); err != nil {
+	if err := json.Unmarshal([]byte(input), &args); err != nil {
 		return "", fmt.Errorf("failed to unmarshal input json: %w", err)
 	}
 
-	subcommand := params.Args[0]
+	subcommand := args.Args[0]
 
-	if len(params.Args) < 2 {
+	if len(args.Args) < 2 {
 		return "", fmt.Errorf("there should be at least 1 subcommand %s", subcommand)
 	}
 
 	if !slices.Contains(readOnlySubcommands, subcommand) {
-		return "", fmt.Errorf("command is not permitted %s", strings.Join(params.Args, " "))
+		return "", fmt.Errorf("command is not permitted %s", strings.Join(args.Args, " "))
 	}
 
-	cmd := exec.CommandContext(ctx, "git", params.Args...)
+	cmd := exec.CommandContext(ctx, "git", args.Args...)
 
 	output, err := cmd.CombinedOutput()
 

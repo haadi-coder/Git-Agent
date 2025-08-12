@@ -33,17 +33,18 @@ func (t *Glob) Params() map[string]any {
 }
 
 func (t *Glob) Call(ctx context.Context, input string) (string, error) {
-	var params struct {
+	// args
+	var args struct {
 		Pattern string `json:"pattern"`
 	}
 
-	if err := json.Unmarshal([]byte(input), &params); err != nil {
+	if err := json.Unmarshal([]byte(input), &args); err != nil {
 		return "", fmt.Errorf("failed to unmarshal glob input: %w", err)
 	}
 
-	matches, err := filepath.Glob(params.Pattern)
+	matches, err := filepath.Glob(args.Pattern)
 	if err != nil {
-		return "", fmt.Errorf("failed to execute glob pattern '%s': %w", params.Pattern, err)
+		return "", fmt.Errorf("failed to execute glob pattern '%s': %w", args.Pattern, err)
 	}
 
 	if len(matches) == 0 {
