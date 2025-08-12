@@ -2,8 +2,10 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/haadi-coder/Git-Agent/internal/llm"
@@ -22,9 +24,10 @@ type Agent struct {
 }
 
 type Hooks struct {
-	Info  func(usedTokens int, timeSpent int)
-	Agent func(content string)
-	Tool  func(name string, args string)
+	Info       func(usedTokens int, timeSpent int)
+	Agent      func(content string)
+	Tool       func(name string, args string)
+	Suggestion func(message string)
 }
 
 func (a *Agent) Run(ctx context.Context) (string, error) {
@@ -50,7 +53,7 @@ func (a *Agent) Run(ctx context.Context) (string, error) {
 		}
 
 		if len(message.ToolCalls) == 0 {
-			return message.Content, nil
+			return a.handleResponse(message.Content)
 		}
 
 		history = append(history, message.ToParam())
@@ -112,4 +115,47 @@ func (a *Agent) toolDefs() []openai.ChatCompletionToolParam {
 	}
 
 	return openaiTools
+}
+
+func (a *Agent) handleResponse(content string) (string, error) {
+	resp := parseResponse(content)
+
+	if resp.Error != "" {
+		return "", fmt.Errorf("%s", resp.Error)
+	}
+
+	if resp.Suggestion != "" {
+		a.Hooks.Suggestion(resp.Suggestion)
+	}
+
+	if resp.Result != "" {
+		return resp.Result, nil
+	}
+
+	return "", fmt.Errorf("no valid response from LLM")
+}
+
+type AgentResponse struct {
+	Error      string `json:"error,omitempty"`
+	Suggestion string `json:"suggestion,omitempty"`
+	Result     string `json:"result,omitempty"`
+}
+
+func parseResponse(content string) *AgentResponse {
+	result := new(AgentResponse)
+
+	lines := strings.SplitSeq(content, "\n")
+	
+	for line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		if err := json.Unmarshal([]byte(line), &result); err != nil {
+			continue
+		}
+	}
+
+	return result
 }

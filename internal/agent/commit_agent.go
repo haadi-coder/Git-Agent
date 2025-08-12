@@ -3,10 +3,8 @@ package agent
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 	"text/template"
 
 	"github.com/haadi-coder/Git-Agent/internal/llm"
@@ -41,6 +39,10 @@ func NewCommitAgent(llmClient *llm.OpenRouter, instructions []string) *CommitAge
 			Info: func(usedTokens, timeSpent int) {
 				fmt.Printf(color.Black("Info: "+"Used Tokens: %d, Time spent: %ds\n\n"), usedTokens, timeSpent)
 			},
+			Suggestion: func(message string) {
+				fmt.Print(color.Cyan("\nSuggestion:\n"))
+				fmt.Println(message)
+			},
 		},
 	}
 
@@ -52,19 +54,31 @@ func NewCommitAgent(llmClient *llm.OpenRouter, instructions []string) *CommitAge
 var responseFormat = &openai.ChatCompletionNewParamsResponseFormatUnion{
 	OfJSONSchema: &openai.ResponseFormatJSONSchemaParam{
 		JSONSchema: openai.ResponseFormatJSONSchemaJSONSchemaParam{
-			Name:        "commit_message_output",
-			Description: openai.String("A strict and compact JSON object containing a single commit_message string, formatted with no spaces or newlines (e.g., {\"commit_message\":\"example\"})"),
+			Name:        "commit_response",
+			Description: openai.String("Response format for commit generation with error handling and suggestions"),
 			Strict:      openai.Bool(true),
 			Schema: &openai.FunctionParameters{
 				"type": "object",
 				"properties": map[string]any{
-					"commit_message": map[string]any{
+					"error": map[string]any{
 						"type":        "string",
-						"description": "The commit message as a string. Must be non-empty and contain no newlines or leading/trailing spaces.",
+						"description": "Error message if something went wrong (e.g., no git repo, no staged changes).",
+					},
+					"suggestion": map[string]any{
+						"type":        "object",
+						"description": "Optional suggestion from the LLM (e.g., to split large commits).",
+					},
+					"result": map[string]any{
+						"type":        "string",
+						"description": "finaly result output. It should result message, that is ready for commiting",
 					},
 				},
-				"required":             []string{"commit_message"},
 				"additionalProperties": false,
+				"anyOf": []any{
+					map[string]any{"required": []string{"error"}},
+					map[string]any{"required": []string{"suggestion"}},
+					map[string]any{"required": []string{"result"}},
+				},
 			},
 		},
 	},
@@ -94,27 +108,13 @@ func buildSystemPrompt(instructions []string) string {
 	return buf.String()
 }
 
+// ?: Возможно уже не нужно выносить в отдельную функцию
 func (ca *CommitAgent) RunCommit(ctx context.Context) string {
 	response, err := ca.Run(ctx)
 	if err != nil {
-		fmt.Printf("Error: %v", err)
+		fmt.Print(color.Redf("Error: %v\n", err))
 		os.Exit(1)
 	}
 
-	return extractCommitMessage(response)
-}
-
-func extractCommitMessage(content string) string {
-	var result struct {
-		CommitMessage string `json:"commit_message"`
-	}
-
-	lines := strings.SplitSeq(content, "\n")
-	for line := range lines {
-		if err := json.Unmarshal([]byte(line), &result); err == nil && result.CommitMessage != "" {
-			return result.CommitMessage
-		}
-	}
-
-	return ""
+	return response
 }
