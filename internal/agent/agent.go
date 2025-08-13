@@ -35,16 +35,14 @@ func init() {
 		&tool.Grep{},
 	}
 
-	for _, t := range tools {
+	for i, t := range tools {
 		toolLookup[t.Name()] = t
-	}
 
-	for i, tool := range tools {
 		toolsDefinition[i] = openai.ChatCompletionToolParam{
 			Function: shared.FunctionDefinitionParam{
-				Name:        tool.Name(),
-				Description: openai.String(tool.Description()),
-				Parameters:  tool.Params(),
+				Name:        t.Name(),
+				Description: openai.String(t.Description()),
+				Parameters:  t.Params(),
 			},
 		}
 	}

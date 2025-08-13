@@ -94,26 +94,26 @@ func main() {
 func Run(ctx context.Context, agent *agent.Agent, opts *Options) error {
 	if opts.Verbose {
 		fmt.Println(color.Cyan("=== Git Agent Session Started ==="))
-		fmt.Printf(color.Black("Start Time: ")+"%s\n", time.Now().Format(time.TimeOnly))
-		fmt.Printf(color.Black("Max Tokens: ")+"%d\n", opts.MaxTokens)
-		fmt.Printf(color.Black("Model: ")+"%s", opts.Model)
+		fmt.Printf(color.Black("⌛ Start Time: ")+"%s\n", time.Now().Format(time.TimeOnly))
+		fmt.Printf(color.Black("🚩 Max Tokens: ")+"%d\n", opts.MaxTokens)
+		fmt.Printf(color.Black("🤖 Model: ")+"%s", opts.Model)
 		if len(opts.Instructions) > 0 {
-			fmt.Println(color.Black("Instructions: "), strings.Join(opts.Instructions, ", "))
+			fmt.Println(color.Black("📝 Instructions: "), strings.Join(opts.Instructions, ", "))
 		}
 	}
 
-	fmt.Println("\n\nAnalizing changes...")
+	fmt.Println("\n\n🔎 Analizing changes...")
 
 	commitMessage, err := agent.Run(ctx)
 	if err != nil {
 		return fmt.Errorf(color.Red("Error: %w\n"), err)
 	}
 
-	fmt.Println(color.Cyan("\nGenerated commit message:"))
+	fmt.Println(color.Cyan("\n📜 Generated commit message:"))
 	fmt.Println(commitMessage)
 
 	if !opts.NoInteractive {
-		fmt.Println("\nCommit with this message? [Y/n]:")
+		fmt.Println("\n❓ Commit with this message? [Y/n]:")
 		reader := bufio.NewReader(os.Stdin)
 		userInput, err := reader.ReadString('\n')
 		if err != nil {
@@ -122,7 +122,7 @@ func Run(ctx context.Context, agent *agent.Agent, opts *Options) error {
 
 		userInput = strings.ToLower(strings.TrimSpace(userInput))
 		if userInput == "n" || userInput == "no" {
-			fmt.Println(color.Red("Message not commited"))
+			fmt.Println(color.Red("❌ Message not commited"))
 			os.Exit(0)
 		}
 	}
@@ -131,7 +131,7 @@ func Run(ctx context.Context, agent *agent.Agent, opts *Options) error {
 		return fmt.Errorf("failed to commit: %w", err)
 	}
 
-	fmt.Print(color.Green("Succesfully commited"))
+	fmt.Print(color.Green("✅ Succesfully commited"))
 	return nil
 }
 
