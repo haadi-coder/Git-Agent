@@ -18,7 +18,6 @@ import (
 
 type Agent struct {
 	LLM          *llm.OpenRouter
-	ToolLookup   map[string]tool.Tool
 	SystemPrompt string
 	Hooks        *Hooks
 }
@@ -81,7 +80,6 @@ func NewCommitAgent(llmClient *llm.OpenRouter, instructions []string) *Agent {
 
 	return &Agent{
 		LLM:          llmClient,
-		ToolLookup:   toolLookup,
 		SystemPrompt: buildSystemPrompt(instructions),
 		Hooks:        &hooks,
 	}
@@ -154,7 +152,7 @@ func (a *Agent) callTools(ctx context.Context, toolCalls []openai.ChatCompletion
 
 		var toolResult string
 
-		if tool, ok := a.ToolLookup[name]; ok {
+		if tool, ok := toolLookup[name]; ok {
 			result, err := tool.Call(ctx, args)
 			if err != nil {
 				toolResult = err.Error()
