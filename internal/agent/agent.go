@@ -48,7 +48,7 @@ func init() {
 	}
 }
 
-func NewCommitAgent(llmClient *llm.OpenRouter, instructions []string) *Agent {
+func NewAgent(llmClient *llm.OpenRouter, instructions []string) *Agent {
 	hooks := Hooks{}
 
 	hooks.AddOnIntermidiateStep(func(ctx context.Context, response *openai.ChatCompletion) {

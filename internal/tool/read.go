@@ -38,18 +38,18 @@ func (t *Read) Call(ctx context.Context, input string) (string, error) {
 	}
 
 	if err := json.Unmarshal([]byte(input), &args); err != nil {
-		return "", fmt.Errorf("failed to unmarshal input json: %w", err)
+		return "", fmt.Errorf("failed to unmarshal input: %w", err)
 	}
 
 	path, err := cleanPath(args.Path)
 	if err != nil {
-		return "", fmt.Errorf("failed to validate path: %w", err)
+		return "", fmt.Errorf("failed to clean path: %w", err)
 	}
 
-	content, err := os.ReadFile(path)
+	output, err := os.ReadFile(path)
 	if err != nil {
 		return "", fmt.Errorf("failed to read file: %w", err)
 	}
 
-	return string(content), nil
+	return string(output), nil
 }

@@ -39,12 +39,12 @@ func (t *LS) Call(ctx context.Context, input string) (string, error) {
 	}
 
 	if err := json.Unmarshal([]byte(input), &args); err != nil {
-		return "", fmt.Errorf("failed to unmarshal input json: %w", err)
+		return "", fmt.Errorf("failed to unmarshal input: %w", err)
 	}
 
 	dir, err := cleanPath(args.Path)
 	if err != nil {
-		return "", fmt.Errorf("failed to validate path: %w", err)
+		return "", fmt.Errorf("failed to clean path: %w", err)
 	}
 
 	var files []string
@@ -72,10 +72,10 @@ func (t *LS) Call(ctx context.Context, input string) (string, error) {
 		return "", fmt.Errorf("failed to walk through files: %w", err)
 	}
 
-	result, err := json.Marshal(files)
+	output, err := json.Marshal(files)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal output json: %w", err)
+		return "", fmt.Errorf("failed to marshal output: %w", err)
 	}
 
-	return string(result), nil
+	return string(output), nil
 }

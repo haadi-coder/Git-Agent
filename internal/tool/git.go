@@ -1,6 +1,7 @@
 package tool
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -41,9 +42,9 @@ func (t *Git) Params() map[string]any {
 	}
 }
 
-type GitResponse struct {
-	Output   string `json:"output"`
+type GitOutput struct {
 	ExitCode int    `json:"exit_code"`
+	Output   string `json:"output"`
 	Error    string `json:"error"`
 }
 
@@ -53,39 +54,42 @@ func (t *Git) Call(ctx context.Context, input string) (string, error) {
 	}
 
 	if err := json.Unmarshal([]byte(input), &args); err != nil {
-		return "", fmt.Errorf("failed to unmarshal input json: %w", err)
+		return "", fmt.Errorf("failed to unmarshal input: %w", err)
+	}
+
+	if len(args.Args) == 0 {
+		return "", fmt.Errorf("there should be at least 1 subcommand")
 	}
 
 	subcommand := args.Args[0]
-
-	if len(args.Args) < 2 {
-		return "", fmt.Errorf("there should be at least 1 subcommand %s", subcommand)
-	}
-
 	if !slices.Contains(readOnlySubcommands, subcommand) {
-		return "", fmt.Errorf("command is not permitted %s", strings.Join(args.Args, " "))
+		return "", fmt.Errorf("only readOnly commands available to use: %s", strings.Join(readOnlySubcommands, ","))
 	}
 
 	cmd := exec.CommandContext(ctx, "git", args.Args...)
 
-	output, err := cmd.CombinedOutput()
+	stdErr := bytes.Buffer{}
+	stdOutput := bytes.Buffer{}
+	cmd.Stderr = &stdErr
+	cmd.Stdout = &stdOutput
 
-	resp := GitResponse{
-		Output: string(output),
+	err := cmd.Run()
+
+	resp := GitOutput{
+		Output: string(stdOutput.String()),
 	}
 
 	if err != nil {
-		if exitError, ok := err.(*exec.ExitError); ok {
-			resp.ExitCode = exitError.ExitCode()
-			resp.Error = err.Error()
+		if cmd.ProcessState.Exited() {
+			resp.ExitCode = cmd.ProcessState.ExitCode()
 		}
-		resp.Error = err.Error()
+		resp.Error = stdErr.String()
 	}
 
-	marshalled, err := json.Marshal(resp)
+	output, err := json.Marshal(resp)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal output json: %w", err)
+		return "", fmt.Errorf("failed to marshal output: %w", err)
 	}
 
-	return string(marshalled), nil
+	return string(output), nil
 }

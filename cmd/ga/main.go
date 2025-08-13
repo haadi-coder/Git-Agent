@@ -17,29 +17,23 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
-const Version = "1.0.0"
+const revision = "unknow"
 
-type Options struct {
-	APIKey        string        `short:"k" long:"api-key" description:"API key for LLM provider" env:"GA_API_KEY" required:"true"`
+type options struct {
+	APIKey        string        `short:"k" long:"api-key" description:"API key for LLM provider" env:"GA_API_KEY" `
 	Model         string        `short:"m" long:"model" description:"Model to use" env:"GA_MODEL" default:"anthropic/claude-3.5-haiku"`
 	MaxTokens     int64         `short:"t" long:"max-tokens" description:"Maximum tokens per session" env:"GA_MAX_TOKENS" default:"8192"`
 	Timeout       time.Duration `long:"timeout" description:"API request timeout" env:"GA_TIMEOUT" default:"30s"`
-	Instructions  []string      `short:"i" long:"instruction" description:"Additional instruction for the agent (can be used multiple times)" env:"GA_INSTRUCTIONS"`
+	Instructions  []string      `short:"i" long:"instruction" description:"Additional instruction for the agent (can be used multiple times)" env:"GA_INSTRUCTIONS" env-delim:"\n"`
 	Verbose       bool          `short:"v" long:"verbose" description:"Show detailed agent actions" env:"GA_VERBOSE"`
 	NoInteractive bool          `short:"y" long:"non-interactive" description:"Commit without confirmation prompt" env:"GA_NO_INTERACTIVE"`
 	Version       bool          `long:"version" description:"Show version information"`
-	Help          bool          `short:"h" long:"help" description:"Show this help message"`
 }
 
 func main() {
-	var opts Options
-
-	parser := flags.NewParser(&opts, flags.IniDefault)
-	parser.Usage = "AI-powered commit message generator\n\nExample:\n  ga commit [options]"
-
-	args, err := parser.Parse()
+	opts, args, err := parseOpts()
 	if err != nil {
-		fmt.Printf("Error parsing arguments: %v\n", err)
+		fmt.Print(err)
 		os.Exit(1)
 	}
 
@@ -49,33 +43,39 @@ func main() {
 	}
 
 	if opts.Version {
-		fmt.Printf("Git Agent v%s\n", Version)
+		fmt.Printf("Git Agent %s\n", revision)
 		os.Exit(0)
 	}
 
-	if opts.Help {
-		parser.WriteHelp(os.Stdout)
-		os.Exit(0)
-	}
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
 
-	envInstructions := os.Getenv("GA_INSTRUCTIONS")
-	if envInstructions != "" {
-		for instruction := range strings.FieldsSeq(envInstructions) {
-			opts.Instructions = append(opts.Instructions, instruction)
+	if err := run(ctx, opts); err != nil {
+		fmt.Print(err)
+		os.Exit(1)
+	}
+}
+
+func parseOpts() (*options, []string, error) {
+	var opts options
+
+	parser := flags.NewParser(&opts, flags.Default)
+	parser.Usage = "AI-powered commit message generator\n\nExample:\n  ga commit [options]"
+
+	args, err := parser.Parse()
+
+	if err != nil {
+		if flagsErr, ok := err.(*flags.Error); ok && flagsErr.Type == flags.ErrHelp {
+			os.Exit(0)
+		} else {
+			return &opts, nil, fmt.Errorf("failed to parse arguments: %w", err)
 		}
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	return &opts, args, nil
+}
 
-	go func() {
-		<-sigChan
-		fmt.Print("\nExited\n")
-		cancel()
-		os.Exit(1)
-	}()
-
+func run(ctx context.Context, opts *options) error {
 	openrouter := llm.NewOpenRouter(&llm.OpenRouterConfig{
 		APIKey:    opts.APIKey,
 		Model:     opts.Model,
@@ -83,15 +83,8 @@ func main() {
 		Timeout:   opts.Timeout,
 	})
 
-	agent := agent.NewCommitAgent(openrouter, opts.Instructions)
+	agent := agent.NewAgent(openrouter, opts.Instructions)
 
-	if err = Run(ctx, agent, &opts); err != nil {
-		fmt.Print(err)
-		os.Exit(1)
-	}
-}
-
-func Run(ctx context.Context, agent *agent.Agent, opts *Options) error {
 	if opts.Verbose {
 		fmt.Println(color.Cyan("=== Git Agent Session Started ==="))
 		fmt.Printf(color.Black("⌛ Start Time: ")+"%s\n", time.Now().Format(time.TimeOnly))
@@ -123,7 +116,8 @@ func Run(ctx context.Context, agent *agent.Agent, opts *Options) error {
 		userInput = strings.ToLower(strings.TrimSpace(userInput))
 		if userInput == "n" || userInput == "no" {
 			fmt.Println(color.Red("❌ Message not commited"))
-			os.Exit(0)
+
+			return nil
 		}
 	}
 
@@ -132,6 +126,7 @@ func Run(ctx context.Context, agent *agent.Agent, opts *Options) error {
 	}
 
 	fmt.Print(color.Green("✅ Succesfully commited"))
+
 	return nil
 }
 

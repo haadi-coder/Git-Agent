@@ -1,6 +1,7 @@
 package tool
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -8,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strings"
 )
 
 type Grep struct{}
@@ -47,17 +47,17 @@ func (t *Grep) Call(ctx context.Context, input string) (string, error) {
 	}
 
 	if err := json.Unmarshal([]byte(input), &args); err != nil {
-		return "", fmt.Errorf("failed to unmarshal grep input: %w", err)
+		return "", fmt.Errorf("failed to unmarshal input: %w", err)
 	}
 
-	regexp, err := regexp.Compile(args.Pattern)
+	rgx, err := regexp.Compile(args.Pattern)
 	if err != nil {
-		return "", fmt.Errorf("failed to compile regular expression from provided pattern: %w", err)
+		return "", fmt.Errorf("failed to compile regular expression: %w", err)
 	}
 
 	path, err := cleanPath(args.Path)
 	if err != nil {
-		return "", fmt.Errorf("failed to validate path: %w", err)
+		return "", fmt.Errorf("failed to clean path: %w", err)
 	}
 
 	info, err := os.Stat(path)
@@ -65,10 +65,11 @@ func (t *Grep) Call(ctx context.Context, input string) (string, error) {
 		if errors.Is(err, os.ErrNotExist) {
 			return "", fmt.Errorf("path %s doesnt exist", args.Path)
 		}
+
 		return "", fmt.Errorf("failed to check path: %w", err)
 	}
 
-	var results []string
+	var matches []string
 
 	walkFunc := func(filePath string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -79,15 +80,11 @@ func (t *Grep) Call(ctx context.Context, input string) (string, error) {
 			return nil
 		}
 
-		content, err := os.ReadFile(filePath)
-		if err != nil {
-			return nil
-		}
-
-		lines := strings.Split(string(content), "\n")
-		for i, line := range lines {
-			if regexp.MatchString(line) {
-				results = append(results, fmt.Sprintf("%s:%d:%s", filePath, i+1, line))
+		file, _ := os.Open(filePath)
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			if rgx.MatchString(scanner.Text()) {
+				matches = append(matches, fmt.Sprintf("%s:%s", filePath, scanner.Text()))
 			}
 		}
 
@@ -104,9 +101,14 @@ func (t *Grep) Call(ctx context.Context, input string) (string, error) {
 		return "", fmt.Errorf("failed to walk through files: %w", err)
 	}
 
-	if len(results) == 0 {
+	if len(matches) == 0 {
 		return "", fmt.Errorf("nothing found based on %s", args.Pattern)
 	}
 
-	return strings.Join(results, "\n"), nil
+	output, err := json.Marshal(matches)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal output json: %w", err)
+	}
+
+	return string(output), nil
 }

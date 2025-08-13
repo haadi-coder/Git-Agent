@@ -22,16 +22,16 @@ type OpenRouterConfig struct {
 	Timeout   time.Duration
 }
 
-func NewOpenRouter(config *OpenRouterConfig) *OpenRouter {
+func NewOpenRouter(cfg *OpenRouterConfig) *OpenRouter {
 	client := openai.NewClient(
-		option.WithAPIKey(config.APIKey),
+		option.WithAPIKey(cfg.APIKey),
 		option.WithBaseURL(BaseURL),
-		option.WithRequestTimeout(config.Timeout),
+		option.WithRequestTimeout(cfg.Timeout),
 	)
 
 	return &OpenRouter{
 		client: &client,
-		cfg:    config,
+		cfg:    cfg,
 	}
 }
 
