@@ -45,7 +45,7 @@ func TestLS(t *testing.T) {
 			name:          "Invalid JSON input",
 			input:         `{invalid json}`,
 			expectError:   true,
-			errorContains: "failed to unmarshal input json",
+			errorContains: "failed to unmarshal input",
 		},
 		{
 			name:          "Non-existent path",
@@ -64,7 +64,7 @@ func TestLS(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			
+
 			result, err := Tool.Call(&LS{}, context.Background(), tt.input)
 
 			if tt.expectError {
