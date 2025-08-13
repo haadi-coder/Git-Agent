@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
-	"strings"
 )
 
 type Glob struct{}
@@ -50,5 +49,10 @@ func (t *Glob) Call(ctx context.Context, input string) (string, error) {
 		return "", fmt.Errorf("no files match the patttern: %s", args.Pattern)
 	}
 
-	return strings.Join(matches, "\n"), nil
+	bytes, err := json.Marshal(matches)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal bytes: %w", err)
+	}
+
+	return string(bytes), nil
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/haadi-coder/Git-Agent/internal/llm"
 	"github.com/haadi-coder/color"
 	"github.com/jessevdk/go-flags"
+	"github.com/openai/openai-go"
 )
 
 const revision = "unknow"
@@ -83,7 +84,34 @@ func run(ctx context.Context, opts *options) error {
 		Timeout:   opts.Timeout,
 	})
 
-	agent := agent.NewAgent(openrouter, opts.Instructions)
+	hooks := agent.Hooks{}
+
+	hooks.AddOnIntermidiateStep(func(ctx context.Context, response *openai.ChatCompletion) {
+		message := response.Choices[0].Message
+		fmt.Print(color.Cyan("✦ "))
+		fmt.Println(color.Yellow("Agent:"), message.Content)
+	})
+
+	hooks.AddBeforeToolCall(func(ctx context.Context, toolCall *openai.ChatCompletionMessageToolCall) {
+		name := toolCall.Function.Name
+		args := toolCall.Function.Arguments
+
+		fmt.Printf(color.Blue("  Tool: ")+"%s(%s)\n", name, args)
+	})
+
+	hooks.AddAfterToolCall(func(ctx context.Context, response *openai.ChatCompletion) {
+		timeSpent := int(time.Now().Unix() - response.Created)
+		usedTokens := int(response.Usage.CompletionTokens)
+
+		fmt.Printf(color.Black("  Info: "+"Used Tokens: %d, Time spent: %ds\n\n"), usedTokens, timeSpent)
+	})
+
+	hooks.AddOnSuggestion(func(ctx context.Context, suggestion string) {
+		fmt.Print(color.Cyan("\nSuggestion:\n"))
+		fmt.Println(suggestion)
+	})
+
+	agent := agent.NewAgent(openrouter, &hooks, opts.Instructions)
 
 	if opts.Verbose {
 		fmt.Println(color.Cyan("=== Git Agent Session Started ==="))

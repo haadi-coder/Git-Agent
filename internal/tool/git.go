@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/exec"
 	"slices"
@@ -68,28 +69,28 @@ func (t *Git) Call(ctx context.Context, input string) (string, error) {
 
 	cmd := exec.CommandContext(ctx, "git", args.Args...)
 
-	stdErr := bytes.Buffer{}
-	stdOutput := bytes.Buffer{}
-	cmd.Stderr = &stdErr
-	cmd.Stdout = &stdOutput
+	stderr := bytes.Buffer{}
+	stdout := bytes.Buffer{}
+	cmd.Stderr = &stderr
+	cmd.Stdout = &stdout
 
-	err := cmd.Run()
-
-	resp := GitOutput{
-		Output: string(stdOutput.String()),
-	}
-
-	if err != nil {
-		if cmd.ProcessState.Exited() {
-			resp.ExitCode = cmd.ProcessState.ExitCode()
+	if err := cmd.Run(); err != nil {
+		var exitError *exec.ExitError
+		if !errors.As(err, &exitError) {
+			return "", fmt.Errorf("failed to exec git cmd: %w", err)
 		}
-		resp.Error = stdErr.String()
 	}
 
-	output, err := json.Marshal(resp)
+	output := GitOutput{
+		ExitCode: cmd.ProcessState.ExitCode(),
+		Output:   stdout.String(),
+		Error:    stderr.String(),
+	}
+
+	bytes, err := json.Marshal(output)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal output: %w", err)
+		return "", fmt.Errorf("failed to marshal bytes: %w", err)
 	}
 
-	return string(output), nil
+	return string(bytes), nil
 }
