@@ -55,7 +55,7 @@ func (t *Grep) Call(ctx context.Context, input string) (string, error) {
 		return "", fmt.Errorf("failed to compile regular expression: %w", err)
 	}
 
-	path, err := cleanPath(args.Path)
+	path, err := cleanpath(args.Path)
 	if err != nil {
 		return "", fmt.Errorf("failed to clean path: %w", err)
 	}
@@ -80,7 +80,11 @@ func (t *Grep) Call(ctx context.Context, input string) (string, error) {
 			return nil
 		}
 
-		file, _ := os.Open(filePath)
+		file, err := os.Open(filePath)
+		if err != nil {
+			return fmt.Errorf("failed to open file: %w", err)
+		}
+
 		scanner := bufio.NewScanner(file)
 		for scanner.Scan() {
 			if rgx.MatchString(scanner.Text()) {

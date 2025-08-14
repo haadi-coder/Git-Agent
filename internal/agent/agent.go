@@ -101,7 +101,8 @@ func (a *Agent) Run(ctx context.Context) (string, error) {
 		}
 
 		if len(message.ToolCalls) == 0 {
-			return a.handleResponse(ctx, message.Content)
+			fmt.Print(message.Content)
+			return a.handleResponse(ctx, message.Content, history)
 		}
 
 		history = append(history, message.ToParam())
@@ -109,7 +110,7 @@ func (a *Agent) Run(ctx context.Context) (string, error) {
 		toolResults := a.callTools(ctx, message.ToolCalls)
 		history = append(history, toolResults...)
 
-		a.Hooks.handleAfterToolCall(ctx, response)
+		a.Hooks.handleAfterIntermidiateStep(ctx, response)
 	}
 }
 
@@ -117,10 +118,11 @@ func (a *Agent) callTools(ctx context.Context, toolCalls []openai.ChatCompletion
 	toolResults := make([]openai.ChatCompletionMessageParamUnion, len(toolCalls))
 
 	for i, toolCall := range toolCalls {
-		args := toolCall.Function.Arguments
-		name := toolCall.Function.Name
+		a.Hooks.handleBeforeCallTool(ctx, &toolCall)
 
 		var toolResult string
+		args := toolCall.Function.Arguments
+		name := toolCall.Function.Name
 
 		if tool, ok := toolLookup[name]; ok {
 			result, err := tool.Call(ctx, args)
@@ -134,8 +136,6 @@ func (a *Agent) callTools(ctx context.Context, toolCalls []openai.ChatCompletion
 		if toolResult == "" {
 			toolResult = fmt.Sprintf("Unknown tool: %s", name)
 		}
-
-		a.Hooks.handleBeforeToolCall(ctx, &toolCall)
 
 		toolResults[i] = openai.ToolMessage(toolResult, toolCall.ID)
 	}

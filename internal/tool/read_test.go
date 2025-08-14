@@ -11,7 +11,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRead(t *testing.T) {
+func TestReadWithTempDir(t *testing.T) {
+	originalWD, _ := os.Getwd()
+
+	tempDir := t.TempDir()
+	err := os.Chdir(tempDir)
+	require.NoError(t, err)
+
+	defer func() {
+		_ = os.Chdir(originalWD)
+	}()
+
 	tests := []struct {
 		name        string
 		filePath    string
@@ -19,14 +29,20 @@ func TestRead(t *testing.T) {
 		expectError bool
 	}{
 		{
-			name:        "success read",
-			filePath:    filepath.Join(t.TempDir(), "hello.txt"),
+			name:        "success read in temp dir",
+			filePath:    "hello.txt",
 			fileContent: "hi, bro",
 			expectError: false,
 		},
 		{
-			name:        "path traversal",
-			filePath:    filepath.Join("..", t.TempDir(), "hello.txt"),
+			name:        "success read in subdirectory",
+			filePath:    "subdir/file.txt",
+			fileContent: "content in subdir",
+			expectError: false,
+		},
+		{
+			name:        "path traversal should fail",
+			filePath:    "../../../etc/passwd",
 			fileContent: "",
 			expectError: true,
 		},
@@ -34,9 +50,16 @@ func TestRead(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+			if tc.fileContent != "" {
+				dir := filepath.Dir(tc.filePath)
+				if dir != "." {
+					err := os.MkdirAll(dir, 0755)
+					require.NoError(t, err)
+				}
 
-			_ = os.WriteFile(tc.filePath, []byte(tc.fileContent), 0644)
+				err := os.WriteFile(tc.filePath, []byte(tc.fileContent), 0644)
+				require.NoError(t, err)
+			}
 
 			result, err := Tool.Call(&Read{}, context.Background(), fmt.Sprintf(`{"path":"%s"}`, tc.filePath))
 
@@ -44,9 +67,8 @@ func TestRead(t *testing.T) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
+				assert.Equal(t, tc.fileContent, result)
 			}
-
-			assert.Equal(t, tc.fileContent, result)
 		})
 	}
 }

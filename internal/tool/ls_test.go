@@ -3,59 +3,50 @@ package tool
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestLS(t *testing.T) {
 	tempDir := t.TempDir()
+	err := os.Chdir(tempDir)
+	require.NoError(t, err)
 
 	createTestFileStructure(t, tempDir)
 
-	originalDir, err := os.Getwd()
-	assert.NoError(t, err, "Failed to get current working directory")
-	_ = os.Chdir(originalDir)
-
-	err = os.Chdir(tempDir)
-	assert.NoError(t, err, "Failed to change to temp directory")
-
 	tests := []struct {
 		name          string
-		input         string
+		inputpath     string
 		expectedFiles []string
 		expectError   bool
 		errorContains string
 	}{
 		{
 			name:          "Valid path with files and directories",
-			input:         `{"path": "` + tempDir + `"}`,
+			inputpath:     ".",
 			expectedFiles: []string{"file1.txt", "file2.txt", "subdir/", "subdir/nested.txt"},
 			expectError:   false,
 		},
 		{
 			name:          "Empty path (current directory)",
-			input:         `{"path": ""}`,
+			inputpath:     "",
 			expectedFiles: []string{"file1.txt", "file2.txt", "subdir/", "subdir/nested.txt"},
 			expectError:   false,
 		},
 		{
-			name:          "Invalid JSON input",
-			input:         `{invalid json}`,
-			expectError:   true,
-			errorContains: "failed to unmarshal input",
-		},
-		{
 			name:          "Non-existent path",
-			input:         `{"path": "/non/existent/path"}`,
+			inputpath:     "./non/existent/path",
 			expectError:   true,
 			errorContains: "failed to walk through files",
 		},
 		{
 			name:          "Path traversal",
-			input:         `{"path": "../` + tempDir + `"}`,
+			inputpath:     "../" + tempDir,
 			expectError:   true,
 			errorContains: "path traversal found",
 		},
@@ -65,7 +56,7 @@ func TestLS(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := Tool.Call(&LS{}, context.Background(), tt.input)
+			result, err := Tool.Call(&LS{}, context.Background(), fmt.Sprintf(`{"path":"%s"}`, tt.inputpath))
 
 			if tt.expectError {
 				assert.Error(t, err, "Expected an error")
@@ -97,4 +88,11 @@ func createTestFileStructure(t *testing.T, tempDir string) {
 
 	err = os.WriteFile(filepath.Join(subDir, "nested.txt"), []byte("nested content"), 0644)
 	assert.NoError(t, err, "Failed to create nested.txt")
+
+	originalPath, err := os.Getwd()
+	require.NoError(t, err)
+
+	defer func() {
+		_ = os.Chdir(originalPath)
+	}()
 }

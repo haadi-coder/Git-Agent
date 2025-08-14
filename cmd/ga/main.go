@@ -64,7 +64,6 @@ func parseOpts() (*options, []string, error) {
 	parser.Usage = "AI-powered commit message generator\n\nExample:\n  ga commit [options]"
 
 	args, err := parser.Parse()
-
 	if err != nil {
 		if flagsErr, ok := err.(*flags.Error); ok && flagsErr.Type == flags.ErrHelp {
 			os.Exit(0)
@@ -93,14 +92,7 @@ func run(ctx context.Context, opts *options) error {
 		fmt.Println(color.Yellow("Agent:"), message.Content)
 	})
 
-	hooks.AddBeforeToolCall(func(ctx context.Context, toolCall *openai.ChatCompletionMessageToolCall) {
-		name := toolCall.Function.Name
-		args := toolCall.Function.Arguments
-
-		fmt.Printf(color.Blue("  Tool: ")+"%s(%s)\n", name, args)
-	})
-
-	hooks.AddAfterToolCall(func(ctx context.Context, response *openai.ChatCompletion) {
+	hooks.AddOnAfterIntermidiateStep(func(ctx context.Context, response *openai.ChatCompletion) {
 		if !opts.Verbose {
 			return
 		}
@@ -111,7 +103,14 @@ func run(ctx context.Context, opts *options) error {
 		fmt.Printf(color.Black("  Info: "+"Used Tokens: %d, Time spent: %ds\n"), usedTokens, timeSpent)
 	})
 
-	hooks.AddOnSuggestion(func(ctx context.Context, suggestion string) {
+	hooks.AddBeforeCallTool(func(ctx context.Context, toolCall *openai.ChatCompletionMessageToolCall) {
+		name := toolCall.Function.Name
+		args := toolCall.Function.Arguments
+
+		fmt.Printf(color.Blue("  Tool: ")+"%s(%s)\n", name, args)
+	})
+
+	hooks.AddOnSuggestion(func(ctx context.Context, suggestion string, history *[]openai.ChatCompletionMessageParamUnion) {
 		fmt.Print(color.Cyan("\nSuggestion:\n"))
 		fmt.Println(suggestion)
 	})

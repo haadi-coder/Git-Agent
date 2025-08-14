@@ -42,7 +42,7 @@ func (t *LS) Call(ctx context.Context, input string) (string, error) {
 		return "", fmt.Errorf("failed to unmarshal input: %w", err)
 	}
 
-	dir, err := cleanPath(args.Path)
+	dir, err := cleanpath(args.Path)
 	if err != nil {
 		return "", fmt.Errorf("failed to clean path: %w", err)
 	}

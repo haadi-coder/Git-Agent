@@ -4,51 +4,46 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/openai/openai-go"
 )
 
-func (a *Agent) handleResponse(ctx context.Context, content string) (string, error) {
-	resp := parseResponse(content)
-
-	if resp.Error != "" {
-		return "", fmt.Errorf("%s", resp.Error)
+func (a *Agent) handleResponse(ctx context.Context, content string, history []openai.ChatCompletionMessageParamUnion) (string, error) {
+	resp, err := parseResponse(content)
+	if err != nil {
+		return "", err
 	}
 
-	if resp.Suggestion != "" {
-		a.Hooks.handleSuggestion(ctx, resp.Suggestion)
+	if resp.Type == "error" {
+		return "", fmt.Errorf("%s", resp.Value)
 	}
 
-	if resp.Result != "" {
-		return resp.Result, nil
+	if resp.Type == "suggestion" {
+		a.Hooks.handleSuggestion(ctx, resp.Value, &history)
+	}
+
+	if resp.Type == "result" {
+		return resp.Value, nil
 	}
 
 	return "", fmt.Errorf("no valid response from LLM")
 }
 
 type Response struct {
-	Error      string `json:"error,omitempty"`
-	Suggestion string `json:"suggestion,omitempty"`
-	Result     string `json:"result,omitempty"`
+	Type  string `json:"type"`
+	Value string `json:"value"`
 }
 
-func parseResponse(content string) *Response {
-	result := new(Response)
+func parseResponse(content string) (*Response, error) {
+	result := struct {
+		Response Response
+	}{}
 
-	lines := strings.SplitSeq(content, "\n")
-	for line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-
-		if err := json.Unmarshal([]byte(line), &result); err != nil {
-			continue
-		}
+	if err := json.Unmarshal([]byte(content), &result); err != nil {
+		return nil, fmt.Errorf("failed parse response")
 	}
 
-	return result
+	return &result.Response, nil
 }
 
 var responseFormat = &openai.ChatCompletionNewParamsResponseFormatUnion{
@@ -60,25 +55,25 @@ var responseFormat = &openai.ChatCompletionNewParamsResponseFormatUnion{
 			Schema: &openai.FunctionParameters{
 				"type": "object",
 				"properties": map[string]any{
-					"error": map[string]any{
-						"type":        "string",
-						"description": "Error message if something went wrong (e.g., no git repo, no staged changes).",
-					},
-					"suggestion": map[string]any{
-						"type":        "object",
-						"description": "Optional suggestion from the LLM (e.g., to split large commits).",
-					},
-					"result": map[string]any{
-						"type":        "string",
-						"description": "finaly result output. It should result message, that is ready for commiting",
+					"response": map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"type": map[string]any{
+								"type":        "string",
+								"enum":        []string{"error", "suggestion", "result"},
+								"description": "The type of response: 'error', 'suggestion' or 'result'.",
+							},
+							"value": map[string]any{
+								"type":        "string",
+								"description": "The content of the response (error message, suggestion details, comment from llm describing its descicions, or commit message).",
+							},
+						},
+						"required":             []string{"type", "value"},
+						"additionalProperties": false,
 					},
 				},
+				"required":             []string{"response"},
 				"additionalProperties": false,
-				"anyOf": []any{
-					map[string]any{"required": []string{"error"}},
-					map[string]any{"required": []string{"suggestion"}},
-					map[string]any{"required": []string{"result"}},
-				},
 			},
 		},
 	},

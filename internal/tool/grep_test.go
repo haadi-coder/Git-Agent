@@ -5,10 +5,14 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestGrep_Call(t *testing.T) {
 	tempDir := t.TempDir()
+	err := os.Chdir(tempDir)
+	require.NoError(t, err)
 
 	createTestFile(t, tempDir, "file1.txt", "hello world\nfoo bar")
 	createTestFile(t, tempDir, "file2.txt", "hello golang\nbaz qux")
@@ -23,19 +27,19 @@ func TestGrep_Call(t *testing.T) {
 	}{
 		{
 			name:    "Valid pattern and single file with match",
-			input:   `{"pattern":"hello","path":"` + filepath.Join(tempDir, "file1.txt") + `"}`,
-			want:    `["` + filepath.Join(tempDir, "file1.txt") + `:hello world"]`,
+			input:   `{"pattern":"hello","path": "file1.txt"}`,
+			want:    `["file1.txt:hello world"]`,
 			wantErr: false,
 		},
 		{
 			name:    "Valid pattern and directory with multiple matches",
-			input:   `{"pattern":"hello","path":"` + tempDir + `"}`,
-			want:    `["` + filepath.Join(tempDir, "file1.txt") + `:hello world","` + filepath.Join(tempDir, "file2.txt") + `:hello golang","` + filepath.Join(tempDir, "subdir", "file3.txt") + `:hello there"]`,
+			input:   `{"pattern":"hello","path":"."}`,
+			want:    `["file1.txt:hello world","file2.txt:hello golang","subdir/file3.txt:hello there"]`,
 			wantErr: false,
 		},
 		{
 			name:    "No matches found",
-			input:   `{"pattern":"nonexistent","path":"` + filepath.Join(tempDir, "file1.txt") + `"}`,
+			input:   `{"pattern":"nonexistent","path":"file1.txt"}`,
 			want:    "",
 			wantErr: true,
 			errMsg:  "nothing found based on nonexistent",
@@ -49,10 +53,10 @@ func TestGrep_Call(t *testing.T) {
 		},
 		{
 			name:    "Non-existent path",
-			input:   `{"pattern":"hello","path":"` + filepath.Join(tempDir, "nonexistent.txt") + `"}`,
+			input:   `{"pattern":"hello","path":"nonexistent.txt"}`,
 			want:    "",
 			wantErr: true,
-			errMsg:  "path " + filepath.Join(tempDir, "nonexistent.txt") + " doesnt exist",
+			errMsg:  "path nonexistent.txt doesnt exist",
 		},
 		{
 			name:    "Invalid JSON input",
@@ -102,4 +106,11 @@ func createTestFile(t *testing.T, tempDir, filePath, content string) {
 	if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
 		t.Fatalf("failed to write file %s: %v", fullPath, err)
 	}
+
+	originalPath, err := os.Getwd()
+	require.NoError(t, err)
+
+	defer func() {
+		_ = os.Chdir(originalPath)
+	}()
 }

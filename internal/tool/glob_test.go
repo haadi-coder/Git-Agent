@@ -2,12 +2,18 @@ package tool
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestGlob_Call(t *testing.T) {
 	tempDir := t.TempDir()
+	err := os.Chdir(tempDir)
+	require.NoError(t, err)
 
 	createTestFile(t, tempDir, "file1.txt", "content1")
 	createTestFile(t, tempDir, "file2.txt", "content2")
@@ -24,14 +30,14 @@ func TestGlob_Call(t *testing.T) {
 	}{
 		{
 			name:    "Match all txt files",
-			input:   `{"pattern":"` + filepath.Join(tempDir, "*.txt") + `"}`,
-			want:    filepath.Join(tempDir, "file1.txt") + "\n" + filepath.Join(tempDir, "file2.txt"),
+			input:   `{"pattern":"./*.txt"}`,
+			want:    fmt.Sprintf(`["%s","%s"]`, "file1.txt", "file2.txt"),
 			wantErr: false,
 		},
 		{
 			name:    "Match test files in src directory",
-			input:   `{"pattern":"` + filepath.Join(tempDir, "src", "*_test.go") + `"}`,
-			want:    filepath.Join(tempDir, "src", "test1_test.go") + "\n" + filepath.Join(tempDir, "src", "test2_test.go"),
+			input:   `{"pattern":"` + filepath.Join(".", "src", "*_test.go") + `"}`,
+			want:    fmt.Sprintf(`["%s","%s"]`, filepath.Join(".", "src", "test1_test.go"), filepath.Join(".", "src", "test2_test.go")),
 			wantErr: false,
 		},
 		{
