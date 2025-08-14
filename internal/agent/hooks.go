@@ -7,14 +7,14 @@ import (
 )
 
 type onIntermidiateStep func(ctx context.Context, response *openai.ChatCompletion)
-type OnBeforeCallTool func(ctx context.Context, toolCall *openai.ChatCompletionMessageToolCall)
-type OnAfterCallTool func(ctx context.Context, response *openai.ChatCompletion)
+type onBeforeCallTool func(ctx context.Context, toolCall *openai.ChatCompletionMessageToolCall)
+type onAfterCallTool func(ctx context.Context, response *openai.ChatCompletion)
 type onSuggestion func(ctx context.Context, suggestion string)
 
 type Hooks struct {
 	onIntermidiateStep []onIntermidiateStep
-	onBeforeCallTool   []OnBeforeCallTool
-	onAfterCallTool    []OnAfterCallTool
+	onBeforeCallTool   []onBeforeCallTool
+	onAfterCallTool    []onAfterCallTool
 	onSuggestion       []onSuggestion
 }
 

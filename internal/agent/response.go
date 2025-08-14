@@ -37,7 +37,6 @@ func parseResponse(content string) *Response {
 	result := new(Response)
 
 	lines := strings.SplitSeq(content, "\n")
-
 	for line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {

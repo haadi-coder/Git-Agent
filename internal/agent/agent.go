@@ -95,7 +95,8 @@ func (a *Agent) Run(ctx context.Context) (string, error) {
 
 		message := response.Choices[0].Message
 
-		if message.Content != "" {
+		isIntermidiateStep := message.Content != "" && len(message.ToolCalls) != 0
+		if isIntermidiateStep {
 			a.Hooks.handleIntermidiateStep(ctx, response)
 		}
 

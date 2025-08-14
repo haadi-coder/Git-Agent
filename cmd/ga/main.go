@@ -52,7 +52,7 @@ func main() {
 	defer cancel()
 
 	if err := run(ctx, opts); err != nil {
-		fmt.Print(err)
+		fmt.Printf("%s\n", err)
 		os.Exit(1)
 	}
 }
@@ -88,6 +88,7 @@ func run(ctx context.Context, opts *options) error {
 
 	hooks.AddOnIntermidiateStep(func(ctx context.Context, response *openai.ChatCompletion) {
 		message := response.Choices[0].Message
+		fmt.Print("\n")
 		fmt.Print(color.Cyan("✦ "))
 		fmt.Println(color.Yellow("Agent:"), message.Content)
 	})
@@ -100,10 +101,14 @@ func run(ctx context.Context, opts *options) error {
 	})
 
 	hooks.AddAfterToolCall(func(ctx context.Context, response *openai.ChatCompletion) {
+		if !opts.Verbose {
+			return
+		}
+
 		timeSpent := int(time.Now().Unix() - response.Created)
 		usedTokens := int(response.Usage.CompletionTokens)
 
-		fmt.Printf(color.Black("  Info: "+"Used Tokens: %d, Time spent: %ds\n\n"), usedTokens, timeSpent)
+		fmt.Printf(color.Black("  Info: "+"Used Tokens: %d, Time spent: %ds\n"), usedTokens, timeSpent)
 	})
 
 	hooks.AddOnSuggestion(func(ctx context.Context, suggestion string) {
@@ -121,9 +126,10 @@ func run(ctx context.Context, opts *options) error {
 		if len(opts.Instructions) > 0 {
 			fmt.Println(color.Black("📝 Instructions: "), strings.Join(opts.Instructions, ", "))
 		}
+		fmt.Print("\n\n")
 	}
 
-	fmt.Println("\n\n🔎 Analizing changes...")
+	fmt.Println("🔎 Analyzing changes...")
 
 	commitMessage, err := agent.Run(ctx)
 	if err != nil {
@@ -134,23 +140,22 @@ func run(ctx context.Context, opts *options) error {
 	fmt.Println(commitMessage)
 
 	if !opts.NoInteractive {
-		fmt.Println("\n❓ Commit with this message? [Y/n]:")
-		reader := bufio.NewReader(os.Stdin)
-		userInput, err := reader.ReadString('\n')
+		fmt.Print("\n❓ Commit with this message? [Y/n]:")
+
+		userInput, err := getUserMessage(ctx)
 		if err != nil {
-			return fmt.Errorf("failed to read input: %w", err)
+			return fmt.Errorf("\nfailed to get user message: %w", err)
 		}
 
-		userInput = strings.ToLower(strings.TrimSpace(userInput))
-		if userInput == "n" || userInput == "no" {
+		prepared := strings.ToLower(strings.TrimSpace(userInput))
+		if prepared == "n" || prepared == "no" {
 			fmt.Println(color.Red("❌ Message not commited"))
-
 			return nil
 		}
 	}
 
-	if err := perfomCommit(commitMessage); err != nil {
-		return fmt.Errorf("failed to commit: %w", err)
+	if err := perfomCommit(ctx, commitMessage); err != nil {
+		return fmt.Errorf("\nfailed to commit: %w", err)
 	}
 
 	fmt.Print(color.Green("✅ Succesfully commited"))
@@ -158,7 +163,25 @@ func run(ctx context.Context, opts *options) error {
 	return nil
 }
 
-func perfomCommit(message string) error {
-	cmd := exec.Command("git", "commit", "-m", message)
+func perfomCommit(ctx context.Context, message string) error {
+	cmd := exec.CommandContext(ctx, "git", "commit", "-m", message)
 	return cmd.Run()
+}
+
+func getUserMessage(ctx context.Context) (string, error) {
+	scanner := bufio.NewScanner(os.Stdin)
+	resultChan := make(chan string)
+
+	go func() {
+		if scanner.Scan() {
+			resultChan <- scanner.Text()
+		}
+	}()
+
+	select {
+	case text := <-resultChan:
+		return text, nil
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
 }
