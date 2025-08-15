@@ -22,7 +22,7 @@ const revision = "unknow"
 
 type options struct {
 	APIKey        string        `short:"k" long:"api-key" description:"API key for LLM provider" env:"GA_API_KEY" `
-	Model         string        `short:"m" long:"model" description:"Model to use" env:"GA_MODEL" default:"anthropic/claude-3.5-haiku"`
+	Model         string        `short:"m" long:"model" description:"Model to use" env:"GA_MODEL" default:"openai/gpt-4o"`
 	MaxTokens     int64         `short:"t" long:"max-tokens" description:"Maximum tokens per session" env:"GA_MAX_TOKENS" default:"8192"`
 	Timeout       time.Duration `long:"timeout" description:"API request timeout" env:"GA_TIMEOUT" default:"30s"`
 	Instructions  []string      `short:"i" long:"instruction" description:"Additional instruction for the agent (can be used multiple times)" env:"GA_INSTRUCTIONS" env-delim:"\n"`
@@ -141,7 +141,7 @@ func run(ctx context.Context, opts *options) error {
 
 	switch resp.Type {
 	case agent.ResponseTypeError:
-		return fmt.Errorf("llm error: %s", resp.Value)
+		return fmt.Errorf(color.Red("llm error: %s"), resp.Value)
 
 	case agent.ResponseTypeSuggestion:
 		fmt.Print(color.Cyan("\nSuggestion:\n"))
