@@ -1,7 +1,6 @@
 package tool
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -57,9 +56,8 @@ func TestCleanPath(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			cleaned, err := cleanPath(tc.input)
+			_, err := cleanPath(tc.input)
 
-			fmt.Print(cleaned)
 			if tc.shouldFail {
 				require.Error(t, err)
 			} else {
