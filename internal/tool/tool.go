@@ -14,18 +14,18 @@ type Tool interface {
 	Call(ctx context.Context, input string) (string, error)
 }
 
-func cleanPath(inputpath string) (string, error) {
-	if inputpath == "" {
+func cleanPath(path string) (string, error) {
+	if path == "" {
 		return ".", nil
 	}
 
-	cleaned := filepath.Clean(inputpath)
+	cleaned := filepath.Clean(path)
 	if filepath.IsAbs(cleaned) {
-		return "", fmt.Errorf("absolute paths is not allowed: %s", inputpath)
+		return "", fmt.Errorf("absolute paths is not allowed: %s", path)
 	}
 
 	if strings.Contains(cleaned, "..") {
-		return "", fmt.Errorf("path traversal found: %s", inputpath)
+		return "", fmt.Errorf("path traversal found: %s", path)
 	}
 
 	return cleaned, nil

@@ -7,25 +7,25 @@ import (
 	"github.com/openai/openai-go"
 )
 
+const (
+	ResponseTypeResult     = "result"
+	ResponseTypeSuggestion = "suggestion"
+	ResponseTypeError      = "error"
+)
+
 type Response struct {
 	Type  string `json:"type"`
 	Value string `json:"value"`
 }
 
 func parseResponse(content string) (*Response, error) {
-	result := new(Response)
+	resp := new(Response)
 
-	if content != "" {
-		if err := json.Unmarshal([]byte(content), &result); err != nil {
-			return nil, fmt.Errorf("failed to parse response: %w", err)
-		}
+	if err := json.Unmarshal([]byte(content), &resp); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal: %w", err)
 	}
 
-	if result.Type == "error" {
-		return nil, fmt.Errorf("llm failed with - %s", result.Value)
-	}
-
-	return result, nil
+	return resp, nil
 }
 
 var responseFormat = &openai.ChatCompletionNewParamsResponseFormatUnion{
@@ -39,7 +39,7 @@ var responseFormat = &openai.ChatCompletionNewParamsResponseFormatUnion{
 				"properties": map[string]any{
 					"type": map[string]any{
 						"type":        "string",
-						"enum":        []string{"error", "suggestion", "result"},
+						"enum":        []string{ResponseTypeError, ResponseTypeSuggestion, ResponseTypeResult},
 						"description": "The type of response: 'error', 'suggestion' or 'result'.",
 					},
 					"value": map[string]any{

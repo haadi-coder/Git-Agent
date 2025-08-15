@@ -35,7 +35,7 @@ func NewOpenRouter(cfg *OpenRouterConfig) *OpenRouter {
 	}
 }
 
-func (c *OpenRouter) CreateChatCompletion(ctx context.Context, params openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
+func (c *OpenRouter) GenerateContent(ctx context.Context, params openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
 	params.Model = c.cfg.Model
 	params.MaxTokens.Value = c.cfg.MaxTokens
 

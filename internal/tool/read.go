@@ -46,10 +46,10 @@ func (t *Read) Call(ctx context.Context, input string) (string, error) {
 		return "", fmt.Errorf("failed to clean path: %w", err)
 	}
 
-	output, err := os.ReadFile(path)
+	contents, err := os.ReadFile(path)
 	if err != nil {
 		return "", fmt.Errorf("failed to read file: %w", err)
 	}
 
-	return string(output), nil
+	return string(contents), nil
 }

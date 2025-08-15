@@ -8,13 +8,12 @@ import (
 
 type onIntermidiateStep func(ctx context.Context, response *openai.ChatCompletion)
 type onCallTool func(ctx context.Context, toolCall *openai.ChatCompletionMessageToolCall)
-type onSuggestion func(ctx context.Context, suggestion string, history *[]openai.ChatCompletionMessageParamUnion)
 
 type Hooks struct {
 	onIntermidiateStep      []onIntermidiateStep
 	onAfterIntermidiateStep []onIntermidiateStep
 	onBeforeCallTool        []onCallTool
-	onSuggestion            []onSuggestion
+	onAfterCallTool         []onCallTool
 }
 
 func (h *Hooks) AddOnIntermidiateStep(hook onIntermidiateStep) {
@@ -29,8 +28,8 @@ func (h *Hooks) AddBeforeCallTool(hook onCallTool) {
 	h.onBeforeCallTool = append(h.onBeforeCallTool, hook)
 }
 
-func (h *Hooks) AddOnSuggestion(hook onSuggestion) {
-	h.onSuggestion = append(h.onSuggestion, hook)
+func (h *Hooks) AddAfterCallTool(hook onCallTool) {
+	h.onAfterCallTool = append(h.onAfterCallTool, hook)
 }
 
 func (h *Hooks) handleIntermidiateStep(ctx context.Context, response *openai.ChatCompletion) {
@@ -63,12 +62,12 @@ func (h *Hooks) handleBeforeCallTool(ctx context.Context, toolCall *openai.ChatC
 	}
 }
 
-func (h *Hooks) handleSuggestion(ctx context.Context, suggestion string, history *[]openai.ChatCompletionMessageParamUnion) {
-	if len(h.onSuggestion) == 0 {
+func (h *Hooks) handleAfterCallTool(ctx context.Context, toolCall *openai.ChatCompletionMessageToolCall) {
+	if len(h.onAfterCallTool) == 0 {
 		return
 	}
 
-	for _, hook := range h.onSuggestion {
-		hook(ctx, suggestion, history)
+	for _, hook := range h.onAfterCallTool {
+		hook(ctx, toolCall)
 	}
 }

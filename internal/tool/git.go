@@ -24,7 +24,7 @@ func (t *Git) Name() string {
 }
 
 func (t *Git) Description() string {
-	return "Execute a safe Git command to retrieve repository information (e.g., diff, status, log)."
+	return "Execute a readonly Git command to retrieve repository information (e.g., diff, status, log)."
 }
 
 func (t *Git) Params() map[string]any {
@@ -64,7 +64,7 @@ func (t *Git) Call(ctx context.Context, input string) (string, error) {
 
 	subcommand := args.Args[0]
 	if !slices.Contains(readOnlySubcommands, subcommand) {
-		return "", fmt.Errorf("only readOnly commands available to use: %s", strings.Join(readOnlySubcommands, ","))
+		return "", fmt.Errorf("only readonly commands available to use: %s", strings.Join(readOnlySubcommands, ","))
 	}
 
 	cmd := exec.CommandContext(ctx, "git", args.Args...)
@@ -89,7 +89,7 @@ func (t *Git) Call(ctx context.Context, input string) (string, error) {
 
 	bytes, err := json.Marshal(output)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal bytes: %w", err)
+		return "", fmt.Errorf("failed to marshal output: %w", err)
 	}
 
 	return string(bytes), nil

@@ -1,42 +1,32 @@
 package agent
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"text/template"
 
 	"github.com/haadi-coder/Git-Agent/internal/llm"
 	"github.com/haadi-coder/Git-Agent/internal/tool"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/shared"
-
-	_ "embed"
 )
 
-type Agent struct {
-	LLM          *llm.OpenRouter
-	SystemPrompt string
-	Hooks        *Hooks
+var tools = [5]tool.Tool{
+	&tool.Read{},
+	&tool.LS{},
+	&tool.Git{},
+	&tool.Glob{},
+	&tool.Grep{},
 }
-
-var tools [5]tool.Tool
-var toolLookup = make(map[string]tool.Tool)
-var toolsDefinition = make([]openai.ChatCompletionToolParam, len(tools))
+var (
+	toolLookup  = make(map[string]tool.Tool, len(tools))
+	openaiTools = make([]openai.ChatCompletionToolParam, len(tools))
+)
 
 func init() {
-	tools = [5]tool.Tool{
-		&tool.Read{},
-		&tool.LS{},
-		&tool.Git{},
-		&tool.Glob{},
-		&tool.Grep{},
-	}
-
 	for i, t := range tools {
 		toolLookup[t.Name()] = t
 
-		toolsDefinition[i] = openai.ChatCompletionToolParam{
+		openaiTools[i] = openai.ChatCompletionToolParam{
 			Function: shared.FunctionDefinitionParam{
 				Name:        t.Name(),
 				Description: openai.String(t.Description()),
@@ -46,79 +36,60 @@ func init() {
 	}
 }
 
-func NewAgent(llmClient *llm.OpenRouter, hooks *Hooks, instructions []string) *Agent {
+type Agent struct {
+	llm          *llm.OpenRouter
+	systemPrompt string
+	hooks        *Hooks
+}
+
+func NewAgent(llm *llm.OpenRouter, instructions []string, hooks *Hooks) (*Agent, error) {
+	systemPrompt, err := buildSystemPrompt(instructions)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build system prompt: %w", err)
+	}
+
 	return &Agent{
-		LLM:          llmClient,
-		SystemPrompt: buildSystemPrompt(instructions),
-		Hooks:        hooks,
-	}
+		llm:          llm,
+		systemPrompt: systemPrompt,
+		hooks:        hooks,
+	}, nil
 }
 
-//go:embed system_prompt.md
-var systemPrompt string
-
-func buildSystemPrompt(instructions []string) string {
-	data := struct {
-		Instructions []string
-	}{
-		Instructions: instructions,
-	}
-
-	template, err := template.New("improved_system_prompt").Parse(systemPrompt)
-	if err != nil {
-		fmt.Printf("Template reading error: %v\n", err)
-	}
-
-	var buf bytes.Buffer
-	err = template.Execute(&buf, data)
-	if err != nil {
-		fmt.Println("Executing template error:", err)
-	}
-
-	return buf.String()
-}
-
-func (a *Agent) Run(ctx context.Context) (string, error) {
+func (a *Agent) Run(ctx context.Context) (*Response, error) {
 	history := []openai.ChatCompletionMessageParamUnion{
-		openai.SystemMessage(a.SystemPrompt),
+		openai.SystemMessage(a.systemPrompt),
 	}
 
 	for {
-		response, err := a.LLM.CreateChatCompletion(ctx, openai.ChatCompletionNewParams{
+		resp, err := a.llm.GenerateContent(ctx, openai.ChatCompletionNewParams{
 			Messages:       history,
-			Tools:          toolsDefinition,
+			Tools:          openaiTools,
 			ResponseFormat: *responseFormat,
 		})
 		if err != nil {
-			return "", fmt.Errorf("failed to create chat: %w", err)
+			return nil, fmt.Errorf("failed to generate content: %w", err)
 		}
 
-		message := response.Choices[0].Message
+		message := resp.Choices[0].Message
 
-		isIntermidiateStep := message.Content != "" && len(message.ToolCalls) != 0
-		if isIntermidiateStep {
-			a.Hooks.handleIntermidiateStep(ctx, response)
+		isFinalStep := len(message.ToolCalls) == 0
+		if isFinalStep {
+			parsed, err := parseResponse(message.Content)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse response: %w", err)
+			}
+
+			return parsed, nil
 		}
 
-		parsed, err := parseResponse(message.Content)
-		if err != nil {
-			return "", err
-		}
-
-		if len(message.ToolCalls) == 0 && parsed.Type == "result" {
-			return parsed.Value, nil
-		}
-
-		if parsed.Type == "suggestion" {
-			a.Hooks.handleSuggestion(ctx, parsed.Value, &history)
-		}
+		a.hooks.handleIntermidiateStep(ctx, resp)
 
 		history = append(history, message.ToParam())
 
 		toolResults := a.callTools(ctx, message.ToolCalls)
 		history = append(history, toolResults...)
 
-		a.Hooks.handleAfterIntermidiateStep(ctx, response)
+		a.hooks.handleAfterIntermidiateStep(ctx, resp)
 	}
 }
 
@@ -126,23 +97,23 @@ func (a *Agent) callTools(ctx context.Context, toolCalls []openai.ChatCompletion
 	toolResults := make([]openai.ChatCompletionMessageParamUnion, len(toolCalls))
 
 	for i, toolCall := range toolCalls {
-		a.Hooks.handleBeforeCallTool(ctx, &toolCall)
+		a.hooks.handleBeforeCallTool(ctx, &toolCall)
 
 		var toolResult string
-		args := toolCall.Function.Arguments
 		name := toolCall.Function.Name
+		args := toolCall.Function.Arguments
 
-		if tool, ok := toolLookup[name]; ok {
+		tool, ok := toolLookup[name]
+
+		if !ok {
+			toolResult = fmt.Sprintf("Unknown tool: %s", name)
+		} else {
 			result, err := tool.Call(ctx, args)
 			if err != nil {
-				toolResult = err.Error()
+				toolResult = fmt.Sprintf("Error: %s", err.Error())
 			} else {
 				toolResult = result
 			}
-		}
-
-		if toolResult == "" {
-			toolResult = fmt.Sprintf("Unknown tool: %s", name)
 		}
 
 		toolResults[i] = openai.ToolMessage(toolResult, toolCall.ID)

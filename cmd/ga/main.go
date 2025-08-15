@@ -52,7 +52,7 @@ func main() {
 	defer cancel()
 
 	if err := run(ctx, opts); err != nil {
-		fmt.Printf("%s\n", err)
+		fmt.Println(err)
 		os.Exit(1)
 	}
 }
@@ -76,17 +76,21 @@ func parseOpts() (*options, []string, error) {
 }
 
 func run(ctx context.Context, opts *options) error {
-	openrouter := llm.NewOpenRouter(&llm.OpenRouterConfig{
+	llm := llm.NewOpenRouter(&llm.OpenRouterConfig{
 		APIKey:    opts.APIKey,
 		Model:     opts.Model,
 		MaxTokens: opts.MaxTokens,
 		Timeout:   opts.Timeout,
 	})
 
-	hooks := agent.Hooks{}
+	hooks := &agent.Hooks{}
 
 	hooks.AddOnIntermidiateStep(func(ctx context.Context, response *openai.ChatCompletion) {
 		message := response.Choices[0].Message
+		if message.Content == "" {
+			return
+		}
+
 		fmt.Print("\n")
 		fmt.Println(color.Yellow("Agent:"), message.Content)
 		fmt.Print("\n")
@@ -112,12 +116,10 @@ func run(ctx context.Context, opts *options) error {
 		fmt.Print("\n")
 	})
 
-	hooks.AddOnSuggestion(func(ctx context.Context, suggestion string, history *[]openai.ChatCompletionMessageParamUnion) {
-		fmt.Print(color.Cyan("\nSuggestion:\n"))
-		fmt.Println(suggestion)
-	})
-
-	agent := agent.NewAgent(openrouter, &hooks, opts.Instructions)
+	a, err := agent.NewAgent(llm, opts.Instructions, hooks)
+	if err != nil {
+		return fmt.Errorf(color.Red("Error: %w\n"), err)
+	}
 
 	if opts.Verbose {
 		fmt.Println(color.Cyan("=== Git Agent Session Started ==="))
@@ -132,44 +134,48 @@ func run(ctx context.Context, opts *options) error {
 
 	fmt.Println("🔎 Analyzing changes...")
 
-	commitMessage, err := agent.Run(ctx)
+	resp, err := a.Run(ctx)
 	if err != nil {
 		return fmt.Errorf(color.Red("Error: %w\n"), err)
 	}
 
-	fmt.Println(color.Cyan("\n📜 Generated commit message:"))
-	fmt.Println(commitMessage)
+	switch resp.Type {
+	case agent.ResponseTypeError:
+		return fmt.Errorf("llm error: %s", resp.Value)
 
-	if !opts.NoInteractive {
-		fmt.Print("\n❓ Commit with this message? [Y/n]:")
+	case agent.ResponseTypeSuggestion:
+		fmt.Print(color.Cyan("\nSuggestion:\n"))
+		fmt.Println(resp.Value)
 
-		userInput, err := getUserMessage(ctx)
-		if err != nil {
-			return fmt.Errorf("\nfailed to get user message: %w", err)
+	case agent.ResponseTypeResult:
+		fmt.Println(color.Cyan("\n📜 Generated commit message:"))
+		fmt.Println(resp.Value)
+
+		if !opts.NoInteractive {
+			fmt.Print("\n❓ Commit with this message? [Y/n]: ")
+
+			ok, err := confirm(ctx)
+			if err != nil {
+				return fmt.Errorf("\nfailed to confirm: %w", err)
+			}
+
+			if !ok {
+				fmt.Println(color.Red("❌ Message not commited"))
+				return nil
+			}
 		}
 
-		prepared := strings.ToLower(strings.TrimSpace(userInput))
-		if prepared == "n" || prepared == "no" {
-			fmt.Println(color.Red("❌ Message not commited"))
-			return nil
+		if err := perfomCommit(ctx, resp.Value); err != nil {
+			return fmt.Errorf("\nfailed to commit: %w", err)
 		}
-	}
 
-	if err := perfomCommit(ctx, commitMessage); err != nil {
-		return fmt.Errorf("\nfailed to commit: %w", err)
+		fmt.Print(color.Green("✅ Succesfully commited"))
 	}
-
-	fmt.Print(color.Green("✅ Succesfully commited"))
 
 	return nil
 }
 
-func perfomCommit(ctx context.Context, message string) error {
-	cmd := exec.CommandContext(ctx, "git", "commit", "-m", message)
-	return cmd.Run()
-}
-
-func getUserMessage(ctx context.Context) (string, error) {
+func confirm(ctx context.Context) (bool, error) {
 	scanner := bufio.NewScanner(os.Stdin)
 	resultChan := make(chan string)
 
@@ -181,8 +187,19 @@ func getUserMessage(ctx context.Context) (string, error) {
 
 	select {
 	case text := <-resultChan:
-		return text, nil
+		prepared := strings.ToLower(strings.TrimSpace(text))
+		if prepared == "n" || prepared == "no" {
+			return false, nil
+		} else {
+			return true, nil
+		}
+
 	case <-ctx.Done():
-		return "", ctx.Err()
+		return false, ctx.Err()
 	}
+}
+
+func perfomCommit(ctx context.Context, message string) error {
+	cmd := exec.CommandContext(ctx, "git", "commit", "-m", message)
+	return cmd.Run()
 }

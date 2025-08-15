@@ -51,7 +51,7 @@ func (t *Glob) Call(ctx context.Context, input string) (string, error) {
 
 	bytes, err := json.Marshal(matches)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal bytes: %w", err)
+		return "", fmt.Errorf("failed to marshal output: %w", err)
 	}
 
 	return string(bytes), nil

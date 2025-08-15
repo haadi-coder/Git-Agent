@@ -72,10 +72,10 @@ func (t *LS) Call(ctx context.Context, input string) (string, error) {
 		return "", fmt.Errorf("failed to walk through files: %w", err)
 	}
 
-	output, err := json.Marshal(files)
+	bytes, err := json.Marshal(files)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal output: %w", err)
 	}
 
-	return string(output), nil
+	return string(bytes), nil
 }
