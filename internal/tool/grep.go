@@ -63,7 +63,7 @@ func (t *Grep) Call(ctx context.Context, input string) (string, error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return "", fmt.Errorf("path %s doesnt exist", args.Path)
+			return "", fmt.Errorf("path %s doesn't exist", args.Path)
 		}
 
 		return "", fmt.Errorf("failed to check path: %w", err)
@@ -84,6 +84,9 @@ func (t *Grep) Call(ctx context.Context, input string) (string, error) {
 		if err != nil {
 			return fmt.Errorf("failed to open file: %w", err)
 		}
+		defer func() {
+			_ = file.Close()
+		}()
 
 		scanner := bufio.NewScanner(file)
 		for scanner.Scan() {
@@ -106,13 +109,13 @@ func (t *Grep) Call(ctx context.Context, input string) (string, error) {
 	}
 
 	if len(matches) == 0 {
-		return "", fmt.Errorf("nothing found based on %s", args.Pattern)
+		return "", fmt.Errorf("no matches found for pattern %s", args.Pattern)
 	}
 
-	output, err := json.Marshal(matches)
+	bytes, err := json.Marshal(matches)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal output json: %w", err)
+		return "", fmt.Errorf("failed to marshal output: %w", err)
 	}
 
-	return string(output), nil
+	return string(bytes), nil
 }

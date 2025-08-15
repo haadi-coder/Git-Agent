@@ -18,7 +18,7 @@ import (
 	"github.com/openai/openai-go"
 )
 
-const revision = "unknow"
+const revision = "unknown"
 
 type options struct {
 	APIKey        string        `short:"k" long:"api-key" description:"API key for LLM provider" env:"GA_API_KEY" `
@@ -160,16 +160,16 @@ func run(ctx context.Context, opts *options) error {
 			}
 
 			if !ok {
-				fmt.Println(color.Red("❌ Message not commited"))
+				fmt.Println(color.Red("❌ Message not committed"))
 				return nil
 			}
 		}
 
-		if err := perfomCommit(ctx, resp.Value); err != nil {
+		if err := performCommit(ctx, resp.Value); err != nil {
 			return fmt.Errorf("\nfailed to commit: %w", err)
 		}
 
-		fmt.Print(color.Green("✅ Succesfully commited"))
+		fmt.Print(color.Green("✅ Successfully committed"))
 	}
 
 	return nil
@@ -199,7 +199,7 @@ func confirm(ctx context.Context) (bool, error) {
 	}
 }
 
-func perfomCommit(ctx context.Context, message string) error {
+func performCommit(ctx context.Context, message string) error {
 	cmd := exec.CommandContext(ctx, "git", "commit", "-m", message)
 	return cmd.Run()
 }

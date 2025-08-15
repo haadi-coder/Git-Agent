@@ -48,7 +48,7 @@ func TestCleanPath(t *testing.T) {
 			shouldFail: false,
 		},
 		{
-			name:       "noraml relative path",
+			name:       "normal relative path",
 			input:      "./normal/path",
 			shouldFail: false,
 		},

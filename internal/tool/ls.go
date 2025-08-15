@@ -17,7 +17,7 @@ func (t *LS) Name() string {
 }
 
 func (t *LS) Description() string {
-	return "tool to list entries of certain path. If there isnt any path provided, list entries of current directory."
+	return "tool to list entries of a certain path. If there isnt any path provided, list entries of current directory."
 }
 
 func (t *LS) Params() map[string]any {

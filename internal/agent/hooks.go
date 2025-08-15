@@ -6,21 +6,21 @@ import (
 	"github.com/openai/openai-go"
 )
 
-type onIntermidiateStep func(ctx context.Context, response *openai.ChatCompletion)
+type onIntermediateStep func(ctx context.Context, response *openai.ChatCompletion)
 type onCallTool func(ctx context.Context, toolCall *openai.ChatCompletionMessageToolCall)
 
 type Hooks struct {
-	onIntermidiateStep      []onIntermidiateStep
-	onAfterIntermidiateStep []onIntermidiateStep
+	onIntermidiateStep      []onIntermediateStep
+	onAfterIntermidiateStep []onIntermediateStep
 	onBeforeCallTool        []onCallTool
 	onAfterCallTool         []onCallTool
 }
 
-func (h *Hooks) AddOnIntermidiateStep(hook onIntermidiateStep) {
+func (h *Hooks) AddOnIntermidiateStep(hook onIntermediateStep) {
 	h.onIntermidiateStep = append(h.onIntermidiateStep, hook)
 }
 
-func (h *Hooks) AddOnAfterIntermidiateStep(hook onIntermidiateStep) {
+func (h *Hooks) AddOnAfterIntermidiateStep(hook onIntermediateStep) {
 	h.onAfterIntermidiateStep = append(h.onAfterIntermidiateStep, hook)
 }
 

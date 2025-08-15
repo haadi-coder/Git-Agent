@@ -46,7 +46,7 @@ func (t *Glob) Call(ctx context.Context, input string) (string, error) {
 	}
 
 	if len(matches) == 0 {
-		return "", fmt.Errorf("no files match the patttern: %s", args.Pattern)
+		return "", fmt.Errorf("no files match the pattern: %s", args.Pattern)
 	}
 
 	bytes, err := json.Marshal(matches)
