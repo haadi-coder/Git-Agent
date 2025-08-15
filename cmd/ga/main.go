@@ -88,8 +88,8 @@ func run(ctx context.Context, opts *options) error {
 	hooks.AddOnIntermidiateStep(func(ctx context.Context, response *openai.ChatCompletion) {
 		message := response.Choices[0].Message
 		fmt.Print("\n")
-		fmt.Print(color.Cyan("✦ "))
 		fmt.Println(color.Yellow("Agent:"), message.Content)
+		fmt.Print("\n")
 	})
 
 	hooks.AddOnAfterIntermidiateStep(func(ctx context.Context, response *openai.ChatCompletion) {
@@ -100,14 +100,16 @@ func run(ctx context.Context, opts *options) error {
 		timeSpent := int(time.Now().Unix() - response.Created)
 		usedTokens := int(response.Usage.CompletionTokens)
 
-		fmt.Printf(color.Black("  Info: "+"Used Tokens: %d, Time spent: %ds\n"), usedTokens, timeSpent)
+		fmt.Printf(color.Black("(%d tokens, %ds)\n"), usedTokens, timeSpent)
 	})
 
 	hooks.AddBeforeCallTool(func(ctx context.Context, toolCall *openai.ChatCompletionMessageToolCall) {
 		name := toolCall.Function.Name
 		args := toolCall.Function.Arguments
 
-		fmt.Printf(color.Blue("  Tool: ")+"%s(%s)\n", name, args)
+		fmt.Print("\n")
+		fmt.Printf(color.Blue("Tool: ")+"%s(%s)", name, args)
+		fmt.Print("\n")
 	})
 
 	hooks.AddOnSuggestion(func(ctx context.Context, suggestion string, history *[]openai.ChatCompletionMessageParamUnion) {

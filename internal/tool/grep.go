@@ -55,7 +55,7 @@ func (t *Grep) Call(ctx context.Context, input string) (string, error) {
 		return "", fmt.Errorf("failed to compile regular expression: %w", err)
 	}
 
-	path, err := cleanpath(args.Path)
+	path, err := cleanPath(args.Path)
 	if err != nil {
 		return "", fmt.Errorf("failed to clean path: %w", err)
 	}

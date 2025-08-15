@@ -17,12 +17,12 @@ func parseResponse(content string) (*Response, error) {
 
 	if content != "" {
 		if err := json.Unmarshal([]byte(content), &result); err != nil {
-			return nil, fmt.Errorf("failed parse response")
+			return nil, fmt.Errorf("failed to parse response: %w", err)
 		}
 	}
 
 	if result.Type == "error" {
-		return nil, fmt.Errorf("llm error: %s", result.Value)
+		return nil, fmt.Errorf("llm failed with - %s", result.Value)
 	}
 
 	return result, nil
@@ -44,7 +44,7 @@ var responseFormat = &openai.ChatCompletionNewParamsResponseFormatUnion{
 					},
 					"value": map[string]any{
 						"type":        "string",
-						"description": "The content of the response (error message, suggestion details, comment from llm describing its descicions, or commit message).",
+						"description": "The content of the response (error message, suggestion details or commit message).",
 					},
 				},
 				"required":             []string{"type", "value"},

@@ -90,7 +90,7 @@ func (a *Agent) Run(ctx context.Context) (string, error) {
 			ResponseFormat: *responseFormat,
 		})
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("failed to create chat: %w", err)
 		}
 
 		message := response.Choices[0].Message
@@ -106,7 +106,6 @@ func (a *Agent) Run(ctx context.Context) (string, error) {
 		}
 
 		if len(message.ToolCalls) == 0 && parsed.Type == "result" {
-			fmt.Print(message.Content)
 			return parsed.Value, nil
 		}
 

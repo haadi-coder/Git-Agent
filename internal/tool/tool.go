@@ -15,7 +15,7 @@ type Tool interface {
 	Call(ctx context.Context, input string) (string, error)
 }
 
-func cleanpath(inputpath string) (string, error) {
+func cleanPath(inputpath string) (string, error) {
 	if inputpath == "" {
 		return ".", nil
 	}
