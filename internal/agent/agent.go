@@ -100,9 +100,18 @@ func (a *Agent) Run(ctx context.Context) (string, error) {
 			a.Hooks.handleIntermidiateStep(ctx, response)
 		}
 
-		if len(message.ToolCalls) == 0 {
+		parsed, err := parseResponse(message.Content)
+		if err != nil {
+			return "", err
+		}
+
+		if len(message.ToolCalls) == 0 && parsed.Type == "result" {
 			fmt.Print(message.Content)
-			return a.handleResponse(ctx, message.Content, history)
+			return parsed.Value, nil
+		}
+
+		if parsed.Type == "suggestion" {
+			a.Hooks.handleSuggestion(ctx, parsed.Value, &history)
 		}
 
 		history = append(history, message.ToParam())
